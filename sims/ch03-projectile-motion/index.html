@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projectile Motion</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --accent: #0072B2;          /* blue   – x component / accent */
+    --vy: #E69F00;              /* orange – y component */
+    --ball: #D55E00;            /* vermillion – projectile */
+    --v: #009E73;               /* green  – total velocity */
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: #fbfcfd; touch-action: none; }
+  .ctrl { margin-bottom: 14px; }
+  .ctrl label { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:focus-visible { outline: 3px solid #56B4E9; outline-offset: 2px; }
+  .checks label { display: block; margin: 4px 0; font-size: .95rem; }
+  select { font: inherit; padding: 3px 6px; }
+  table.readouts { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); }
+  table.readouts td:last-child { text-align: right; font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; color: var(--muted); margin-top: 8px; }
+  .sw { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  .questions { max-width: 1400px; margin: 0 auto; padding: 0 20px 32px; }
+  .questions ol { margin: 6px 0 0; padding-left: 22px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Projectile Motion</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 3.4</span>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <canvas id="cv" width="1000" height="560" aria-label="Projectile trajectory"></canvas>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--ball)"></span>Trajectory</span>
+      <span><span class="sw" style="background:var(--v)"></span>Velocity v</span>
+      <span><span class="sw" style="background:var(--accent)"></span>v<sub>x</sub></span>
+      <span><span class="sw" style="background:var(--vy)"></span>v<sub>y</sub></span>
+      <span><span class="sw" style="background:#b9c0ca"></span>Earlier launches</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Launch settings</h2>
+    <div class="ctrl">
+      <label for="angle">Launch angle θ <output id="angleOut"></output></label>
+      <input id="angle" type="range" min="0" max="90" step="1" value="45">
+    </div>
+    <div class="ctrl">
+      <label for="speed">Launch speed v₀ <output id="speedOut"></output></label>
+      <input id="speed" type="range" min="5" max="30" step="0.5" value="15">
+    </div>
+    <div class="ctrl">
+      <label for="height">Launch height h <output id="heightOut"></output></label>
+      <input id="height" type="range" min="0" max="20" step="0.5" value="0">
+    </div>
+
+    <div class="buttons">
+      <button id="play" class="primary">Launch</button>
+      <button id="step" title="Advance 0.05 s">Step</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" id="showV" checked> Show velocity vector</label>
+      <label><input type="checkbox" id="showComp" checked> Show components v<sub>x</sub>, v<sub>y</sub></label>
+      <label><input type="checkbox" id="keep" checked> Keep earlier trajectories</label>
+      <label>Playback speed
+        <select id="rate">
+          <option value="1">1× (real time)</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.25">0.25×</option>
+        </select>
+      </label>
+    </div>
+
+    <table class="readouts" aria-live="polite">
+      <tr><td>Time t</td><td id="rT"></td></tr>
+      <tr><td>Position x</td><td id="rX"></td></tr>
+      <tr><td>Position y</td><td id="rY"></td></tr>
+      <tr><td>v<sub>x</sub></td><td id="rVx"></td></tr>
+      <tr><td>v<sub>y</sub></td><td id="rVy"></td></tr>
+      <tr><td>Maximum height</td><td id="rH"></td></tr>
+      <tr><td>Range</td><td id="rR"></td></tr>
+      <tr><td>Time of flight</td><td id="rTf"></td></tr>
+    </table>
+    <p style="color:var(--muted);font-size:.85rem;margin:8px 0 0">g = 9.80 m/s², no air resistance. Max height, range and time of flight appear when the projectile lands.</p>
+  </div>
+</div>
+
+<div class="questions"><div class="panel">
+  <h2>Try this</h2>
+  <ol>
+    <li>With h = 0, predict which angle gives the greatest range. Test it. Which pairs of angles give the same range?</li>
+    <li>Raise the launch height to 10 m. Is 45° still the angle for maximum range?</li>
+    <li>Watch v<sub>x</sub> and v<sub>y</sub> during flight. Which one changes, and at what rate?</li>
+  </ol>
+</div></div>
+
+<script>
+(() => {
+  const g = 9.80;
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // Format to 3 significant figures without scientific notation
+  const sf = (x, unit) => {
+    if (!isFinite(x)) return '—';
+    if (Math.abs(x) < 5e-4) x = 0;
+    const s = Math.abs(x) >= 1000 ? x.toFixed(0) : x.toPrecision(3);
+    return s + ' ' + unit;
+  };
+
+  let p;            // current launch parameters
+  let t = 0;        // elapsed flight time (s)
+  let running = false, landed = false;
+  let trail = [];   // current trajectory points [x,y]
+  let ghosts = [];  // earlier trajectories
+  let view;         // world->screen mapping
+  let lastFrame = null;
+
+  function params() {
+    const th = +el('angle').value * Math.PI / 180;
+    const v0 = +el('speed').value, h = +el('height').value;
+    const vx = v0 * Math.cos(th), vy = v0 * Math.sin(th);
+    const tf = (vy + Math.sqrt(vy * vy + 2 * g * h)) / g;
+    const hmax = vy > 0 ? h + vy * vy / (2 * g) : h;
+    return { th, v0, h, vx, vy, tf, hmax, range: vx * tf };
+  }
+
+  // Fixed view large enough for the most extreme slider settings at the current height,
+  // so the scale doesn't jump while students compare launches.
+  // The scale depends on launch speed and height only (not angle), so launches at
+  // different angles are drawn on the same axes. It grows to fit earlier launches.
+  let vView = 0, fs = 15;
+  function makeView() {
+    const vmax = vView, hSet = +el('height').value;
+    const xMax = Math.max(10, rangeEnvelope(hSet, vmax) * 1.05);
+    const yMax = Math.max(5, (hSet + vmax * vmax / (2 * g)) * 1.08);
+    fs = Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width))));  // readable on small screens
+    const padL = fs * 4.2, padR = 20, padT = 20, padB = fs * 3;
+    const w = cv.width - padL - padR, hgt = cv.height - padT - padB;
+    const s = Math.min(w / xMax, hgt / yMax);          // equal scale on both axes
+    return { s, padL, padB, x0: padL, y0: cv.height - padB, xMax: w / s, yMax: hgt / s };
+  }
+  function rangeEnvelope(h, v) {
+    // maximum possible range at speed v from height h (any angle)
+    return (v / g) * Math.sqrt(v * v + 2 * g * h);
+  }
+  const X = x => view.x0 + x * view.s;
+  const Y = y => view.y0 - y * view.s;
+
+  function niceStep(span) {
+    const raw = span / 8, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag;
+    return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * mag;
+  }
+
+  function drawGrid() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const step = niceStep(view.xMax);
+    ctx.font = fs + 'px system-ui, sans-serif';
+    ctx.fillStyle = '#5b6575';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= view.xMax + 1e-9; x += step) {
+      ctx.strokeStyle = x === 0 ? '#9aa3af' : '#e6e9ee';
+      ctx.beginPath(); ctx.moveTo(X(x), Y(0)); ctx.lineTo(X(x), Y(view.yMax)); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillText(+x.toFixed(6), X(x), Y(0) + fs * 1.3);
+    }
+    for (let y = 0; y <= view.yMax + 1e-9; y += step) {
+      ctx.strokeStyle = y === 0 ? '#9aa3af' : '#e6e9ee';
+      ctx.beginPath(); ctx.moveTo(X(0), Y(y)); ctx.lineTo(X(view.xMax), Y(y)); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.fillText(+y.toFixed(6), X(0) - 8, Y(y) + fs * 0.35);
+    }
+    ctx.textAlign = 'center'; ctx.fillText('x (m)', X(view.xMax / 2), cv.height - 6);
+    ctx.save(); ctx.translate(fs, Y(view.yMax / 2)); ctx.rotate(-Math.PI / 2); ctx.fillText('y (m)', 0, 0); ctx.restore();
+    // ground
+    ctx.fillStyle = '#e9ecef'; ctx.fillRect(X(0), Y(0), cv.width - X(0), 3);
+    // launch platform
+    if (p.h > 0) { ctx.fillStyle = '#cfd5dc'; ctx.fillRect(X(0) - 14, Y(p.h), 14, p.h * view.s); }
+  }
+
+  function path(pts, color, width) {
+    if (pts.length < 2) return;
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(X(pts[0][0]), Y(pts[0][1]));
+    for (const q of pts) ctx.lineTo(X(q[0]), Y(q[1]));
+    ctx.stroke();
+  }
+
+  function arrow(x1, y1, dx, dy, color) {
+    const len = Math.hypot(dx, dy);
+    if (len < 2) return;
+    const x2 = x1 + dx, y2 = y1 + dy, a = Math.atan2(dy, dx), hd = Math.min(12, len * 0.4);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - hd * 0.7 * Math.cos(a), y2 - hd * 0.7 * Math.sin(a)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hd * Math.cos(a - 0.4), y2 - hd * Math.sin(a - 0.4));
+    ctx.lineTo(x2 - hd * Math.cos(a + 0.4), y2 - hd * Math.sin(a + 0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function state(time) {
+    const tt = Math.min(time, p.tf);
+    return { x: p.vx * tt, y: p.h + p.vy * tt - 0.5 * g * tt * tt, vx: p.vx, vy: p.vy - g * tt };
+  }
+
+  function draw() {
+    drawGrid();
+    for (const gpts of ghosts) path(gpts, '#b9c0ca', 2);
+    path(trail, css('--ball'), 3);
+
+    const s = state(t);
+    const px = X(s.x), py = Y(s.y);
+    const k = 110 / vView;  // pixels per (m/s): launch-speed arrow is about 110 px
+    if (el('showComp').checked) {
+      arrow(px, py, s.vx * k, 0, css('--accent'));
+      arrow(px, py, 0, -s.vy * k, css('--vy'));
+    }
+    if (el('showV').checked) arrow(px, py, s.vx * k, -s.vy * k, css('--v'));
+    // launch angle guide before launch
+    if (!running && t === 0) {
+      ctx.setLineDash([6, 6]); ctx.strokeStyle = '#9aa3af'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 90 * Math.cos(p.th), py - 90 * Math.sin(p.th)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.fillStyle = css('--ball');
+    ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+
+    el('rT').textContent = sf(Math.min(t, p.tf), 's');
+    el('rX').textContent = sf(s.x, 'm');
+    el('rY').textContent = sf(s.y, 'm');
+    el('rVx').textContent = sf(s.vx, 'm/s');
+    el('rVy').textContent = sf(s.vy, 'm/s');
+    el('rH').textContent = landed ? sf(p.hmax, 'm') : '—';
+    el('rR').textContent = landed ? sf(p.range, 'm') : '—';
+    el('rTf').textContent = landed ? sf(p.tf, 's') : '—';
+  }
+
+  function advance(dt) {
+    t = Math.min(t + dt, p.tf);
+    const s = state(t);
+    trail.push([s.x, s.y]);
+    if (t >= p.tf) { landed = true; running = false; updateButtons(); }
+  }
+
+  function frame(now) {
+    if (!running) { lastFrame = null; return; }
+    if (lastFrame !== null) {
+      const dt = Math.min(0.05, (now - lastFrame) / 1000) * +el('rate').value;
+      advance(dt);
+    }
+    lastFrame = now;
+    draw();
+    if (running) requestAnimationFrame(frame);
+  }
+
+  function updateButtons() {
+    el('play').textContent = running ? 'Pause' : (t > 0 && !landed ? 'Resume' : 'Launch');
+    el('step').disabled = landed;
+  }
+
+  function reset(keepGhost) {
+    if (keepGhost && trail.length > 1 && el('keep').checked) ghosts.push(trail);
+    if (!el('keep').checked) ghosts = [];
+    running = false; landed = false; t = 0;
+    p = params();
+    vView = ghosts.length ? Math.max(vView, p.v0) : p.v0;
+    view = makeView();
+    trail = [[0, p.h]];
+    updateButtons(); draw();
+  }
+
+  function syncLabels() {
+    el('angleOut').textContent = el('angle').value + '°';
+    el('speedOut').textContent = (+el('speed').value).toFixed(1) + ' m/s';
+    el('heightOut').textContent = (+el('height').value).toFixed(1) + ' m';
+  }
+
+  ['angle', 'speed', 'height'].forEach(id => el(id).addEventListener('input', () => {
+    syncLabels();
+    if (id === 'height') ghosts = [];   // earlier paths start from a different height
+    reset(true);
+  }));
+  el('play').addEventListener('click', () => {
+    if (landed) reset(true);
+    running = !running; updateButtons();
+    if (running) requestAnimationFrame(frame);
+  });
+  el('step').addEventListener('click', () => { running = false; advance(0.05); updateButtons(); draw(); });
+  el('reset').addEventListener('click', () => { ghosts = []; reset(false); });
+  window.addEventListener('resize', () => { view = makeView(); draw(); });
+  ['showV', 'showComp'].forEach(id => el(id).addEventListener('change', draw));
+  el('keep').addEventListener('change', () => { if (!el('keep').checked) { ghosts = []; draw(); } });
+
+  syncLabels();
+  reset(false);
+})();
+</script>
+</body>
+</html>
