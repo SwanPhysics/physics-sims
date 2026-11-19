@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inclined Plane with Friction</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd;
+    /* Graphic colors: each is at least 3:1 against the plot background (WCAG 1.4.11) */
+    --normal: #0072B2;          /* blue        – normal force, current run   5.05:1 */
+    --friction: #D55E00;        /* vermillion  – friction                    3.76:1 */
+    --net: #009E73;             /* green       – net force                   3.33:1 */
+    --comp: #6B7480;            /* gray        – weight components, axes     4.61:1 */
+    --ghost: #7A8494;           /* gray, dashed – earlier runs               3.68:1 */
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--normal); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; padding: 16px 20px;
+            max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .views { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
+  .views .full { grid-column: 1 / -1; }
+  @media (max-width: 1150px) { .views { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 12px; }
+  .ctrl .lab { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--normal); }
+  input[type=range] { width: 100%; accent-color: var(--normal); }
+  select { font: inherit; padding: 4px 6px; width: 100%; margin-top: 2px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #b8c0cb;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--normal); border-color: var(--normal); color: #fff; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(a, button, input, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 12px; }
+  legend { font-weight: 600; font-size: .95rem; padding: 0 4px; }
+  .checks label { display: block; margin: 4px 0; font-size: .95rem; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 4px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: .95rem; vertical-align: top; }
+  table.readouts th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  table.readouts th.group { font-weight: 700; padding-top: 10px; border-top: 2px solid var(--line); }
+  .verdict { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; border: 2px solid var(--line); font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin: 8px 0 0;
+            list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  table.data { margin-top: 8px; width: 100%; }
+  table.data th, table.data td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Inclined Plane with Friction</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 5.1</span>
+</header>
+
+<main class="layout">
+  <div class="views">
+    <section class="panel full" aria-labelledby="rampHeading">
+      <h2 id="rampHeading">Block on a ramp</h2>
+      <canvas id="ramp" width="1000" height="440" role="img"
+              aria-label="A block on a 10 meter ramp tilted at the chosen angle, with distance marks along the ramp. A text summary follows."></canvas>
+      <p class="summary"><strong>Ramp summary:</strong> <span id="rampDesc"></span></p>
+    </section>
+
+    <section class="panel" aria-labelledby="fbdHeading">
+      <h2 id="fbdHeading">Free-body diagram</h2>
+      <canvas id="fbd" width="560" height="560" role="img"
+              aria-label="Free-body diagram of the block with labeled force arrows. A text summary follows."></canvas>
+      <ul class="legend" aria-label="Key for the free-body diagram">
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="19" y2="5" stroke="#1d2430" stroke-width="3"/><path d="M17 1 L25 5 L17 9 Z" fill="#1d2430"/></svg>w: weight</li>
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="19" y2="5" stroke="#0072B2" stroke-width="3"/><path d="M17 1 L25 5 L17 9 Z" fill="#0072B2"/></svg>N: normal force</li>
+        <li><svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="19" y2="6" stroke="#D55E00" stroke-width="5"/><path d="M17 0 L25 6 L17 12 Z" fill="#D55E00"/></svg>f: friction (thick)</li>
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="19" y2="5" stroke="#6B7480" stroke-width="2" stroke-dasharray="4 3"/><path d="M17 1 L25 5 L17 9 Z" fill="#6B7480"/></svg>Weight components (dashed)</li>
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="19" y2="5" stroke="#009E73" stroke-width="3" stroke-dasharray="9 3 2 3"/><path d="M17 1 L25 5 L17 9 Z" fill="#009E73"/></svg>F<sub>net</sub>: net force (dash-dot)</li>
+      </ul>
+      <p class="summary"><strong>Diagram summary:</strong> <span id="fbdDesc"></span></p>
+    </section>
+
+    <section class="panel" aria-labelledby="graphHeading">
+      <h2 id="graphHeading">Position–time graph</h2>
+      <canvas id="graph" width="800" height="560" role="img"
+              aria-label="Graph of the block's position along the ramp versus time. A text summary follows, and the data is in the table below it."></canvas>
+      <ul class="legend" aria-label="Key for the graph">
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#0072B2" stroke-width="3"/></svg>Current run (solid)</li>
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#7A8494" stroke-width="2" stroke-dasharray="6 4"/></svg>Earlier runs (dashed)</li>
+      </ul>
+      <p class="summary"><strong>Graph summary:</strong> <span id="graphDesc"></span></p>
+      <details>
+        <summary>Run data table (every 0.1 s)</summary>
+        <p id="dataEmpty" class="note">Press Play; the table fills in as the block moves.</p>
+        <div class="tablewrap" tabindex="0" role="region" aria-label="Run data, scrollable">
+          <table class="data" id="dataTable" hidden>
+            <caption id="dataCaption"></caption>
+            <thead><tr><th scope="col">t (s)</th><th scope="col">Position s (m)</th><th scope="col">Velocity v (m/s)</th><th scope="col">Acceleration a (m/s²)</th><th scope="col">Friction</th></tr></thead>
+            <tbody id="dataBody"></tbody>
+          </table>
+        </div>
+        <p><button id="csv" type="button" disabled>Download run data as CSV</button></p>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+    <div class="ctrl">
+      <div class="lab"><label for="angle">Ramp angle θ</label><output id="angleOut" for="angle" aria-hidden="true"></output></div>
+      <input id="angle" type="range" min="10" max="60" step="1" value="30">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="v0">Initial speed v₀</label><output id="v0Out" for="v0" aria-hidden="true"></output></div>
+      <input id="v0" type="range" min="0" max="1.5" step="0.1" value="0">
+    </div>
+    <div class="ctrl">
+      <label for="dir" class="lab">Initial push direction</label>
+      <select id="dir">
+        <option value="down">Down the ramp</option>
+        <option value="up">Up the ramp</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="mass">Mass m</label><output id="massOut" for="mass" aria-hidden="true"></output></div>
+      <input id="mass" type="range" min="0.5" max="10" step="0.1" value="2">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="mus">Coefficient of static friction μ<sub>s</sub></label><output id="musOut" for="mus" aria-hidden="true"></output></div>
+      <input id="mus" type="range" min="0" max="1" step="0.01" value="0.5">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="muk">Coefficient of kinetic friction μ<sub>k</sub></label><output id="mukOut" for="muk" aria-hidden="true"></output></div>
+      <input id="muk" type="range" min="0" max="1" step="0.01" value="0.4">
+    </div>
+    <p class="note" style="margin-top:-4px">μ<sub>k</sub> can't be larger than μ<sub>s</sub>; moving one slider past the other moves both.</p>
+
+    <p class="verdict" id="verdict"></p>
+
+    <div class="buttons" style="margin-top:12px">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button" aria-describedby="resetHint">Reset</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the motion by 0.05 seconds and pauses.</p>
+    <p id="resetHint" class="sr-only">Returns the block to the start with the initial speed.</p>
+
+    <fieldset class="checks">
+      <legend>Show</legend>
+      <label><input type="checkbox" id="showComp"> Weight components (mg sin θ, mg cos θ)</label>
+      <label><input type="checkbox" id="showNet" checked> Net force</label>
+      <label><input type="checkbox" id="keep" checked> Keep earlier runs on the graph</label>
+      <label>Playback speed
+        <select id="rate"><option value="1">1× (real time)</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select>
+      </label>
+    </fieldset>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values</caption>
+      <tr><th scope="row">Time t</th><td id="rT"></td></tr>
+      <tr><th scope="row">Position s</th><td id="rS"></td></tr>
+      <tr><th scope="row">Velocity v</th><td id="rV"></td></tr>
+      <tr><th scope="row">Acceleration a</th><td id="rA"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Forces</th></tr>
+      <tr><th scope="row">Weight w = mg</th><td id="rW"></td></tr>
+      <tr><th scope="row">Normal force N</th><td id="rN"></td></tr>
+      <tr><th scope="row">Friction</th><td id="rF"></td></tr>
+      <tr><th scope="row">Net force F<sub>net</sub></th><td id="rNet"></td></tr>
+    </table>
+    <p class="note">Position s is measured along the ramp from the starting point; positive is down the ramp, and velocity and acceleration use the same sign. The block starts 2 m from the top of a 10 m ramp. g = 9.81 m/s².</p>
+
+    <!-- Screen-reader announcements: only at events, never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const g = 9.81, RAMP = 10, START = 2;          // ramp length (m); start distance from the top (m)
+  const S_TOP = -START, S_BOTTOM = RAMP - START;  // positions of the ramp ends
+  const T_MAX = 20;
+  const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const INK = '#1d2430';
+  const rampCv = el('ramp'), rctx = rampCv.getContext('2d');
+  const fbdCv = el('fbd'), fctx = fbdCv.getContext('2d');
+  const grCv = el('graph'), gctx = grCv.getContext('2d');
+
+  const num = x => {
+    if (!isFinite(x)) return '—';
+    if (Math.abs(x) < 5e-4) return '0';
+    return Math.abs(x) >= 1000 ? Math.round(x).toString() : x.toPrecision(3);
+  };
+  const fixed = (x, d) => { const s = x.toFixed(d); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; };
+
+  // ---- Settings and run state ------------------------------------------------
+  let th, m, mus, muk, v0;          // θ in radians
+  let t = 0, s = 0, v = 0;
+  let running = false, ended = false, endReason = '';
+  let samples = [], nextSample = 0;
+  let path = [], ghosts = [];
+  let lastFrame = null;
+  let fs = 15;
+
+  function readSettings() {
+    th = +el('angle').value * Math.PI / 180; m = +el('mass').value;
+    mus = +el('mus').value; muk = +el('muk').value;
+    v0 = +el('v0').value * (el('dir').value === 'up' ? -1 : 1);
+  }
+  const sinT = () => Math.sin(th), cosT = () => Math.cos(th);
+  const slipsFromRest = () => Math.tan(th) > mus + 1e-12;
+
+  // Acceleration along the ramp (positive = down the ramp) for a given velocity
+  function accel(vel) {
+    if (vel > 1e-12) return g * (sinT() - muk * cosT());        // moving down: kinetic friction up the ramp
+    if (vel < -1e-12) return g * (sinT() + muk * cosT());       // moving up: kinetic friction down the ramp
+    return slipsFromRest() ? g * (sinT() - muk * cosT()) : 0;   // at rest: static friction holds unless tan θ > μs
+  }
+  // Friction force along the ramp (positive = down the ramp) and its kind
+  function friction(vel) {
+    const Nf = m * g * cosT();
+    if (vel > 1e-12) return { f: -muk * Nf, kind: 'kinetic' };
+    if (vel < -1e-12) return { f: muk * Nf, kind: 'kinetic' };
+    if (slipsFromRest()) return { f: -muk * Nf, kind: 'kinetic' };
+    return { f: -m * g * sinT(), kind: 'static' };               // just enough to cancel mg sin θ
+  }
+  const stuck = () => Math.abs(v) < 1e-12 && !slipsFromRest();
+
+  function sample() {
+    samples.push({ t, s, v, a: accel(v), kind: friction(v).kind });
+  }
+
+  // Integrate with exact constant-acceleration pieces; split at v = 0 and at the ramp ends
+  function advance(dt) {
+    let left = dt;
+    while (left > 1e-12 && !ended) {
+      if (t + 1e-9 >= nextSample) { sample(); nextSample += 0.1; }
+      let h = Math.min(left, 0.002, nextSample - t);
+      const a = accel(v);
+      if (stuck()) {                       // block at rest and static friction holds
+        end('rest'); break;
+      }
+      // would the velocity pass through zero in this piece?
+      if (Math.abs(v) > 1e-12 && v * (v + a * h) < 0) h = -v / a;
+      let sNew = s + v * h + 0.5 * a * h * h, vNew = v + a * h;
+      if (Math.abs(vNew) < 1e-9 && Math.abs(v) > 1e-12) vNew = 0;
+      // reaching an end of the ramp
+      if (sNew >= S_BOTTOM || sNew <= S_TOP) {
+        const target = sNew >= S_BOTTOM ? S_BOTTOM : S_TOP;
+        // solve s + v τ + a τ²/2 = target for the first τ in (0, h]
+        let tau;
+        if (Math.abs(a) < 1e-12) tau = (target - s) / v;
+        else {
+          const disc = Math.max(0, v * v + 2 * a * (target - s));
+          const r1 = (-v + Math.sqrt(disc)) / a, r2 = (-v - Math.sqrt(disc)) / a;
+          tau = [r1, r2].filter(x => x > 1e-12 && x <= h + 1e-9).sort((p, q) => p - q)[0] ?? h;
+        }
+        t += tau; v += a * tau; s = target; left -= tau;
+        path.push([t, s]);
+        end(target === S_BOTTOM ? 'bottom' : 'top'); break;
+      }
+      t += h; s = sNew; v = vNew; left -= h;
+      path.push([t, s]);
+      if (t >= T_MAX - 1e-9) { end('time'); break; }
+    }
+  }
+
+  function end(reason) {
+    ended = true; endReason = reason; running = false;
+    sample();
+    updateButtons(); refresh();
+    announce(endText());
+    renderData();
+  }
+  function endText() {
+    const tt = `${fixed(t, 2)} s`;
+    if (endReason === 'rest') {
+      if (t < 1e-9) return `The block stays at rest. tan θ = ${num(Math.tan(th))} is not greater than μs = ${fixed(mus, 2)}, so static friction holds it.`;
+      return `The block stopped at s = ${num(s)} m after ${tt} and stays at rest; static friction holds it.`;
+    }
+    if (endReason === 'bottom') return `The block reached the bottom of the ramp after ${tt}, moving at ${num(Math.abs(v))} m/s.`;
+    if (endReason === 'top') return `The block reached the top of the ramp after ${tt}, moving at ${num(Math.abs(v))} m/s.`;
+    return `Time limit of ${T_MAX} s reached. The block is at s = ${num(s)} m moving at ${num(v)} m/s.`;
+  }
+
+  // ---- Drawing helpers --------------------------------------------------------
+  function scaleFont(cv) { return Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width)))); }
+  function arrow(ctx, x1, y1, dx, dy, color, width, dash) {
+    const len = Math.hypot(dx, dy);
+    if (len < 3) return false;
+    const x2 = x1 + dx, y2 = y1 + dy, a = Math.atan2(dy, dx), hd = Math.min(16, len * 0.45);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - hd * 0.8 * Math.cos(a), y2 - hd * 0.8 * Math.sin(a)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hd * Math.cos(a - 0.42), y2 - hd * Math.sin(a - 0.42));
+    ctx.lineTo(x2 - hd * Math.cos(a + 0.42), y2 - hd * Math.sin(a + 0.42));
+    ctx.closePath(); ctx.fill();
+    return true;
+  }
+  // Label with optional subscript and trailing text, dark ink with a halo; anchored at its center
+  function label(ctx, cv, main, sub, rest, x, y, italic = true, placed = null) {
+    ctx.save(); ctx.textBaseline = 'middle';
+    const big = (italic ? 'italic ' : '') + '600 ' + fs + 'px system-ui, sans-serif';
+    const small = '600 ' + Math.round(fs * 0.7) + 'px system-ui, sans-serif';
+    const plain = '600 ' + fs + 'px system-ui, sans-serif';
+    ctx.font = big; const w1 = ctx.measureText(main).width;
+    ctx.font = small; const w2 = sub ? ctx.measureText(sub).width + 1 : 0;
+    ctx.font = plain; const w3 = rest ? ctx.measureText(rest).width : 0;
+    const W = w1 + w2 + w3;
+    const x0 = Math.max(4, Math.min(cv.width - W - 4, x - W / 2));
+    let y0 = Math.max(fs * 0.8, Math.min(cv.height - fs * 0.8, y));
+    if (placed) {
+      // move the label up or down until it no longer overlaps one already drawn
+      const hit = yy => placed.some(b => x0 < b.x + b.w + 6 && b.x < x0 + W + 6 && yy - fs * 0.7 < b.y + b.h && b.y < yy + fs * 0.7);
+      for (const dyy of [0, 1.3, -1.3, 2.6, -2.6, 3.9, -3.9]) {
+        const yy = Math.max(fs * 0.8, Math.min(cv.height - fs * 0.8, y + dyy * fs));
+        if (!hit(yy)) { y0 = yy; break; }
+      }
+      placed.push({ x: x0, y: y0 - fs * 0.7, w: W, h: fs * 1.4 });
+    }
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.fillStyle = INK; ctx.lineJoin = 'round';
+    ctx.font = big; ctx.strokeText(main, x0, y0); ctx.fillText(main, x0, y0);
+    if (sub) { ctx.font = small; ctx.strokeText(sub, x0 + w1 + 1, y0 + fs * 0.3); ctx.fillText(sub, x0 + w1 + 1, y0 + fs * 0.3); }
+    if (rest) { ctx.font = plain; ctx.strokeText(rest, x0 + w1 + w2, y0); ctx.fillText(rest, x0 + w1 + w2, y0); }
+    ctx.restore();
+  }
+
+  // ---- Ramp scene ------------------------------------------------------------------
+  function drawRamp() {
+    const W = rampCv.width, H = rampCv.height, ctx = rctx;
+    fs = scaleFont(rampCv);
+    ctx.clearRect(0, 0, W, H);
+    const c = cosT(), sn = sinT();
+    const padX = 60, padTop = 50, padBot = fs * 3.2;
+    const ppm = Math.min((W - 2 * padX) / (RAMP * Math.max(c, 0.2)), sn > 0.01 ? (H - padTop - padBot) / (RAMP * sn) : 1e9);
+    const lenPx = RAMP * ppm;
+    const bx = W / 2 + (lenPx * c) / 2, by = H - padBot;           // bottom end of the ramp
+    const tx = bx - lenPx * c, ty = by - lenPx * sn;               // top end
+    const dx = c, dy = sn;                                         // unit vector down the ramp (screen)
+    const nx = sn, ny = -c;                                        // outward normal (screen)
+    // ground and ramp
+    ctx.strokeStyle = css('--comp'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(20, by); ctx.lineTo(W - 20, by); ctx.stroke();
+    ctx.fillStyle = '#e3e7ec';
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(bx, by); ctx.lineTo(tx, by); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.strokeStyle = css('--comp'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, by); ctx.stroke();
+    // angle arc at the bottom
+    if (th > 0.005) {
+      ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(bx, by, 60, Math.PI, Math.PI + th); ctx.stroke();
+      label(ctx, rampCv, 'θ', '', ' = ' + Math.round(th * 180 / Math.PI) + '°', bx - 60 - fs * 3, by - fs * 0.8);
+    } else label(ctx, rampCv, 'θ', '', ' = 0°', bx - fs * 3, by - fs * 1.6);
+    // distance marks every 1 m, labeled with position s
+    ctx.fillStyle = '#5b6575'; ctx.font = Math.round(fs * 0.85) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let k = S_TOP; k <= S_BOTTOM; k++) {
+      const d = (k - S_TOP) * ppm, px = tx + dx * d, py = ty + dy * d;
+      ctx.strokeStyle = k === 0 ? INK : css('--comp'); ctx.lineWidth = k === 0 ? 3 : 1.5;
+      ctx.beginPath(); ctx.moveTo(px - nx * 6, py - ny * 6); ctx.lineTo(px - nx * (k === 0 ? 18 : 12), py - ny * (k === 0 ? 18 : 12)); ctx.stroke();
+      if (k % 2 === 0 || k === S_TOP) {
+        const lx = px - nx * (fs * 1.9), ly = py - ny * (fs * 1.9);
+        if (ly < by + fs * 1.5) ctx.fillText(k === 0 ? '0 (start)' : String(k), lx, ly);
+      }
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    label(ctx, rampCv, 's', '', ' (m), positive down the ramp', Math.min(W - 200, Math.max(200, (tx + bx) / 2 + 30)), Math.min(H - fs, by + fs * 1.9), true);
+    // block
+    const bl = Math.max(54, 0.9 * ppm), bh = bl * 0.6;
+    const d = (s - S_TOP) * ppm;
+    const cx = tx + dx * d + nx * (bh / 2 + 1.5), cy = ty + dy * d + ny * (bh / 2 + 1.5);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(th);
+    ctx.fillStyle = '#f0d9a8'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.fillRect(-bl / 2, -bh / 2, bl, bh); ctx.strokeRect(-bl / 2, -bh / 2, bl, bh);
+    ctx.fillStyle = INK; ctx.font = '700 ' + Math.round(fs * 0.95) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.toFixed(1) + ' kg', 0, 1);
+    ctx.restore();
+    // velocity arrow above the block
+    if (Math.abs(v) > 0.02) {
+      const L = 22 + 22 * Math.abs(v), sg = Math.sign(v);
+      const ax = cx + nx * (bh / 2 + 26) - dx * sg * L / 2, ay = cy + ny * (bh / 2 + 26) - dy * sg * L / 2;
+      arrow(ctx, ax, ay, dx * sg * L, dy * sg * L, css('--normal'), 4);
+      label(ctx, rampCv, 'v', '', '', ax + dx * sg * L + nx * 20, ay + dy * sg * L + ny * 20);
+    }
+  }
+
+  // ---- Free-body diagram -----------------------------------------------------------
+  function forces() {
+    const w = m * g, N = w * cosT(), fr = friction(v), net = m * accel(v);
+    return { w, N, f: fr.f, kind: fr.kind, net };
+  }
+  function drawFBD() {
+    const W = fbdCv.width, ctx = fctx, cx = W / 2, cy = W * 0.47;
+    fs = scaleFont(fbdCv);
+    ctx.clearRect(0, 0, W, W);
+    const c = cosT(), sn = sinT(), dx = c, dy = sn, nx = sn, ny = -c;
+    const F = forces(), k = (W * 0.42) / F.w;              // weight arrow is 42 % of the panel; all forces share this scale
+    // faint ramp direction line through the block
+    ctx.strokeStyle = '#d3d8df'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.moveTo(cx - dx * W, cy - dy * W); ctx.lineTo(cx + dx * W, cy + dy * W); ctx.stroke(); ctx.setLineDash([]);
+    // block as a small square tilted with the ramp (drawn first so arrows sit on top)
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(th);
+    ctx.fillStyle = '#f0d9a8'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.fillRect(-15, -15, 30, 30); ctx.strokeRect(-15, -15, 30, 30);
+    ctx.restore();
+    const placed = [];
+    const lab = (main, sub, val, x, y) => label(ctx, fbdCv, main, sub, ' = ' + num(val) + ' N', x, y, true, placed);
+    // weight: straight down, label to the right of its tip
+    arrow(ctx, cx, cy, 0, F.w * k, INK, 3.5);
+    lab('w', '', F.w, cx + fs * 4.2, cy + F.w * k - fs * 0.6);
+    // normal force: out of the surface
+    if (arrow(ctx, cx, cy, nx * F.N * k, ny * F.N * k, css('--normal'), 3.5))
+      lab('N', '', F.N, cx + nx * (F.N * k + 26), cy + ny * (F.N * k + 26));
+    // friction: along the surface
+    if (Math.abs(F.f) > 1e-9) {
+      const L = F.f * k, sg = Math.sign(L);
+      arrow(ctx, cx, cy, dx * L, dy * L, css('--friction'), 6);
+      lab('f', F.kind === 'static' ? 's' : 'k', Math.abs(F.f), cx + dx * (L + sg * fs * 3.4) + nx * 22, cy + dy * (L + sg * fs * 3.4) + ny * 22);
+    }
+    // weight components (optional)
+    if (el('showComp').checked && th > 0.005) {
+      const par = F.w * sn * k, perp = F.w * c * k;
+      arrow(ctx, cx, cy, dx * par, dy * par, css('--comp'), 2.5, [6, 4]);
+      label(ctx, fbdCv, 'mg', '', ' sin θ', cx + dx * (par + fs * 3.4) - nx * 14, cy + dy * (par + fs * 3.4) - ny * 14, true, placed);
+      arrow(ctx, cx, cy, -nx * perp, -ny * perp, css('--comp'), 2.5, [6, 4]);
+      label(ctx, fbdCv, 'mg', '', ' cos θ', cx - nx * (perp + 18) - fs * 2.2, cy - ny * (perp + 18), true, placed);
+    }
+    // net force: on a parallel line just below the surface line, so it doesn't cover friction
+    if (el('showNet').checked) {
+      if (Math.abs(F.net) > 1e-9) {
+        const L = F.net * k, sg = Math.sign(L), ox = cx - nx * 36, oy = cy - ny * 36;
+        arrow(ctx, ox, oy, dx * L, dy * L, css('--net'), 3.5, [12, 4, 3, 4]);
+        lab('F', 'net', Math.abs(F.net), ox + dx * (L + sg * fs * 3.6) - nx * 22, oy + dy * (L + sg * fs * 3.6) - ny * 22);
+      } else label(ctx, fbdCv, 'F', 'net', ' = 0 (forces balance)', fs * 7, fs * 1.2, true, placed);
+    }
+  }
+
+  // ---- Position–time graph --------------------------------------------------------
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+    return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * mag;
+  }
+  function drawGraph() {
+    const W = grCv.width, H = grCv.height, ctx = gctx;
+    fs = scaleFont(grCv);
+    ctx.clearRect(0, 0, W, H);
+    const padL = fs * 4.2, padR = 24, padT = 20, padB = fs * 3.2, w = W - padL - padR, h = H - padT - padB;
+    let tEnd = Math.max(3, t);
+    for (const gp of ghosts) if (gp.length) tEnd = Math.max(tEnd, gp[gp.length - 1][0]);
+    const tMax = Math.ceil(tEnd * 1.1);
+    const X = x => padL + x / tMax * w, Y = y => padT + (S_BOTTOM - y) / (S_BOTTOM - S_TOP) * h;
+    ctx.font = fs + 'px system-ui, sans-serif'; ctx.fillStyle = '#5b6575';
+    const xs = niceStep(tMax, 6);
+    ctx.textAlign = 'center';
+    for (let x = 0; x <= tMax + 1e-9; x += xs) {
+      ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X(x), padT); ctx.lineTo(X(x), padT + h); ctx.stroke();
+      ctx.fillText(+x.toFixed(6), X(x), padT + h + fs * 1.3);
+    }
+    ctx.textAlign = 'right';
+    for (let y = S_TOP; y <= S_BOTTOM; y += 2) {
+      ctx.strokeStyle = y === 0 ? css('--comp') : '#e6e9ee'; ctx.lineWidth = y === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(padL, Y(y)); ctx.lineTo(padL + w, Y(y)); ctx.stroke();
+      ctx.fillText(String(y), padL - 8, Y(y) + fs * 0.35);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillText('Time t (s)', padL + w / 2, H - fs * 0.5);
+    ctx.save(); ctx.translate(fs, padT + h / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('Position s (m)', 0, 0); ctx.restore();
+    // ramp ends
+    ctx.textAlign = 'left'; ctx.font = Math.round(fs * 0.8) + 'px system-ui, sans-serif';
+    ctx.fillText('bottom of ramp', padL + 6, Y(S_BOTTOM) + fs * 0.9);
+    ctx.fillText('top of ramp', padL + 6, Y(S_TOP) - fs * 0.4);
+    ctx.strokeStyle = css('--comp'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + h); ctx.lineTo(padL + w, padT + h); ctx.stroke();
+    const line = (pts, color, width, dash) => {
+      if (pts.length < 1) return;
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(X(pts[0][0]), Y(pts[0][1]));
+      for (const p of pts) ctx.lineTo(X(p[0]), Y(p[1]));
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    for (const gp of ghosts) line(gp, css('--ghost'), 2, [8, 5]);
+    line(path, css('--normal'), 3);
+    ctx.fillStyle = css('--normal'); ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(X(t), Y(s), 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+
+  // ---- Readouts, text alternatives, announcements --------------------------------
+  function verdictText() {
+    const tn = Math.tan(th);
+    return slipsFromRest()
+      ? `tan θ = ${num(tn)} > μs = ${fixed(mus, 2)}: a block at rest will start sliding.`
+      : `tan θ = ${num(tn)} ≤ μs = ${fixed(mus, 2)}: a block at rest stays at rest.`;
+  }
+  function readouts() {
+    const F = forces(), a = accel(v);
+    el('rT').textContent = fixed(t, 2) + ' s';
+    el('rS').textContent = num(s) + ' m';
+    el('rV').textContent = num(v) + ' m/s';
+    el('rA').textContent = num(a) + ' m/s²';
+    el('rW').textContent = num(F.w) + ' N';
+    el('rN').textContent = num(F.N) + ' N';
+    el('rF').textContent = Math.abs(F.f) < 1e-9 ? '0 N' : `${num(Math.abs(F.f))} N, ${F.kind}, ${F.f < 0 ? 'up' : 'down'} the ramp`;
+    el('rNet').textContent = Math.abs(F.net) < 1e-9 ? '0 N' : `${num(Math.abs(F.net))} N, ${F.net > 0 ? 'down' : 'up'} the ramp`;
+    const tn = Math.tan(th);
+    el('verdict').innerHTML = slipsFromRest()
+      ? `tan θ = ${num(tn)} &gt; μ<sub>s</sub> = ${fixed(mus, 2)}<br>A block at rest will slide.`
+      : `tan θ = ${num(tn)} ≤ μ<sub>s</sub> = ${fixed(mus, 2)}<br>A block at rest stays put.`;
+  }
+  function setupText() {
+    const d = v0 === 0 ? 'starting from rest' : `pushed ${v0 > 0 ? 'down' : 'up'} the ramp at ${num(Math.abs(v0))} m/s`;
+    return `A ${m.toFixed(1)} kg block on a ramp at ${Math.round(th * 180 / Math.PI)}°, μs = ${fixed(mus, 2)}, μk = ${fixed(muk, 2)}, ${d}.`;
+  }
+  function motionWord() {
+    if (stuck()) return 'at rest';
+    const a = accel(v);
+    if (Math.abs(v) < 1e-9) return 'starting to slide down';
+    const dir = v > 0 ? 'down' : 'up';
+    if (Math.abs(a) < 1e-9) return `moving ${dir} the ramp at constant speed`;
+    return `moving ${dir} the ramp and ${a * v > 0 ? 'speeding up' : 'slowing down'}`;
+  }
+  function describe() {
+    el('rampDesc').textContent = `${setupText()} ${verdictText()} At t = ${fixed(t, 2)} s the block is at s = ${num(s)} m, ${motionWord()}.` + (ended ? ' ' + endText() : '');
+    const F = forces();
+    const parts = [`weight ${num(F.w)} N straight down`, `normal force ${num(F.N)} N perpendicular to the ramp surface`];
+    if (Math.abs(F.f) > 1e-9) parts.push(`${F.kind} friction ${num(Math.abs(F.f))} N ${F.f < 0 ? 'up' : 'down'} the ramp`);
+    else parts.push('no friction');
+    let net = Math.abs(F.net) < 1e-9 ? 'The forces balance: net force is zero.' : `Net force ${num(Math.abs(F.net))} N ${F.net > 0 ? 'down' : 'up'} the ramp, giving a = ${num(accel(v))} m/s².`;
+    el('fbdDesc').textContent = `Forces on the block: ${parts.join('; ')}. ${net}` +
+      (el('showComp').checked ? ` Weight components: mg sin θ = ${num(F.w * sinT())} N down the ramp, mg cos θ = ${num(F.w * cosT())} N into the ramp.` : '');
+    // graph
+    let gtxt = `Position along the ramp versus time, from −2 m (top) to 8 m (bottom). `;
+    if (path.length < 2 && !ended) gtxt += 'No motion yet; press Play.';
+    else if (stuck() && t < 1e-9) gtxt += 'The line stays flat at s = 0: the block never moves.';
+    else {
+      const a = samples.length ? samples.map(q => q.a) : [accel(v)];
+      let iMin = 0; path.forEach((p, i) => { if (p[1] < path[iMin][1]) iMin = i; });
+      if (v0 < 0 && path[iMin][1] < -1e-6 && iMin < path.length - 1)
+        gtxt += `The block first moved up the ramp to s = ${num(path[iMin][1])} m, stopped for an instant at t = ${fixed(path[iMin][0], 2)} s, then ${s > path[iMin][1] + 1e-6 ? 'slid back down' : 'stayed there'}. `;
+      gtxt += `So far the block has gone from s = 0 to s = ${num(s)} m in ${fixed(t, 2)} s. `;
+      const allSame = a.every(x => Math.abs(x - a[0]) < 1e-6);
+      if (allSame) {
+        if (Math.abs(a[0]) < 1e-9) gtxt += 'The line is straight (constant velocity).';
+        else gtxt += `The curve bends ${a[0] > 0 ? 'upward toward larger s' : 'toward smaller s'} (constant acceleration of ${num(a[0])} m/s²).`;
+      } else gtxt += 'The curve changes shape where the block reverses direction or stops, because friction changes direction or switches from kinetic to static.';
+    }
+    if (ghosts.length) gtxt += ` ${ghosts.length} earlier ${ghosts.length === 1 ? 'run is' : 'runs are'} shown dashed.`;
+    el('graphDesc').textContent = gtxt;
+  }
+  function renderData() {
+    const rows = samples;
+    el('dataBody').innerHTML = rows.map(r =>
+      `<tr><td>${fixed(r.t, 2)}</td><td>${num(r.s)}</td><td>${num(r.v)}</td><td>${num(r.a)}</td><td>${r.kind}</td></tr>`).join('');
+    el('dataCaption').textContent = setupText() + (ended ? ' The last row is the end of the run.' : '');
+    const any = rows.length > 0;
+    el('dataTable').hidden = !any; el('dataEmpty').hidden = any; el('csv').disabled = !any;
+  }
+  function announce(msg) {
+    el('status').textContent = '';
+    setTimeout(() => {
+      el('status').textContent = msg.replace(/m\/s²/g, 'meters per second squared').replace(/m\/s/g, 'meters per second')
+        .replace(/μs/g, 'mu s').replace(/μk/g, 'mu k').replace(/tan θ/g, 'tan theta').replace(/(\d) kg/g, '$1 kilogram')
+        .replace(/(\d) s\b/g, '$1 seconds').replace(/(\d) m\b/g, '$1 meters').replace(/(\d) N\b/g, '$1 newtons').replace(/°/g, ' degrees');
+    }, 50);
+  }
+  function refresh() { drawRamp(); drawFBD(); drawGraph(); readouts(); describe(); renderData(); }
+
+  // ---- Run control ---------------------------------------------------------------
+  function updateButtons() {
+    el('play').textContent = running ? 'Pause' : (ended ? 'Run again' : (t > 0 ? 'Resume' : 'Play'));
+    el('step').disabled = ended;
+  }
+  function newRun(keepGhost) {
+    if (keepGhost && path.length > 1 && el('keep').checked) ghosts.push(path);
+    if (!el('keep').checked) ghosts = [];
+    if (ghosts.length > 6) ghosts.shift();
+    readSettings();
+    t = 0; s = 0; v = v0; ended = false; endReason = ''; running = false;
+    samples = []; nextSample = 0; path = [[0, 0]];
+    updateButtons(); renderData(); refresh();
+  }
+  function frame(now) {
+    if (!running) { lastFrame = null; return; }
+    if (lastFrame !== null) advance(Math.min(0.05, (now - lastFrame) / 1000) * +el('rate').value);
+    lastFrame = now;
+    drawRamp(); drawFBD(); drawGraph(); readouts();
+    if (running) requestAnimationFrame(frame);
+  }
+
+  // ---- Controls ---------------------------------------------------------------------
+  function syncLabels() {
+    const a = el('angle').value, v0s = (+el('v0').value).toFixed(1), ms = (+el('mass').value).toFixed(1);
+    const us = (+el('mus').value).toFixed(2), uk = (+el('muk').value).toFixed(2);
+    el('angleOut').textContent = a + '°'; el('v0Out').textContent = v0s + ' m/s'; el('massOut').textContent = ms + ' kg';
+    el('musOut').textContent = us; el('mukOut').textContent = uk;
+    el('angle').setAttribute('aria-valuetext', a + (a === '1' ? ' degree' : ' degrees'));
+    el('v0').setAttribute('aria-valuetext', v0s + ' meters per second');
+    el('mass').setAttribute('aria-valuetext', ms + ' kilograms');
+    el('mus').setAttribute('aria-valuetext', us);
+    el('muk').setAttribute('aria-valuetext', uk);
+  }
+  function onSettings(e) {
+    // keep μk ≤ μs: the slider being moved pushes the other one
+    const us = +el('mus').value, uk = +el('muk').value;
+    if (uk > us + 1e-9) {
+      if (e && e.target.id === 'muk') { el('mus').value = uk; announce(`Mu s raised to ${uk.toFixed(2)} so that mu k is not larger than mu s.`); }
+      else { el('muk').value = us; announce(`Mu k lowered to ${us.toFixed(2)} so that mu k is not larger than mu s.`); }
+    }
+    syncLabels(); newRun(true);
+  }
+  ['angle', 'v0', 'mass', 'mus', 'muk'].forEach(id => el(id).addEventListener('input', onSettings));
+  el('dir').addEventListener('change', onSettings);
+  ['showComp', 'showNet'].forEach(id => el(id).addEventListener('change', () => { drawFBD(); describe(); }));
+  el('keep').addEventListener('change', () => { if (!el('keep').checked) { ghosts = []; drawGraph(); describe(); } });
+
+  el('play').addEventListener('click', () => {
+    if (running) { running = false; updateButtons(); refresh(); announce(`Paused at t = ${fixed(t, 2)} s. Position ${num(s)} m, velocity ${num(v)} m/s, acceleration ${num(accel(v))} m/s².`); return; }
+    if (ended) newRun(true);
+    if (stuck()) { end('rest'); return; }
+    running = true; updateButtons();
+    announce((t > 0 ? 'Resumed. ' : 'Playing. ') + setupText() + ' ' + (t > 0 ? '' : verdictText()));
+    requestAnimationFrame(frame);
+  });
+  el('step').addEventListener('click', () => {
+    running = false;
+    if (stuck()) { end('rest'); return; }
+    advance(0.05); updateButtons(); refresh();
+    if (!ended) announce(`t = ${fixed(t, 2)} s. Position ${num(s)} m, velocity ${num(v)} m/s, acceleration ${num(accel(v))} m/s².`);
+  });
+  el('reset').addEventListener('click', () => { ghosts = []; newRun(false); announce('Reset. ' + setupText()); });
+  el('csv').addEventListener('click', () => {
+    const head = 't (s),position s (m),velocity v (m/s),acceleration a (m/s^2),friction';
+    const lines = samples.map(r => [r.t.toFixed(3), r.s.toFixed(4), r.v.toFixed(4), r.a.toFixed(4), r.kind].join(','));
+    const meta = `# angle ${Math.round(th * 180 / Math.PI)} deg; mass ${m} kg; mu_s ${mus}; mu_k ${muk}; v0 ${v0} m/s (positive = down the ramp); g = 9.81 m/s^2`;
+    const blob = new Blob([meta + '\n' + head + '\n' + lines.join('\n') + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `incline_${Math.round(th * 180 / Math.PI)}deg_mus${mus.toFixed(2)}_muk${muk.toFixed(2)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  window.addEventListener('resize', refresh);
+
+  syncLabels(); newRun(false);
+})();
+</script>
+</body>
+</html>
