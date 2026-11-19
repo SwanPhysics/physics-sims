@@ -73,11 +73,11 @@
     </div>
     <div class="ctrl">
       <label for="speed">Launch speed v₀ <output id="speedOut"></output></label>
-      <input id="speed" type="range" min="5" max="30" step="0.5" value="15">
+      <input id="speed" type="range" min="0" max="8" step="0.1" value="5">
     </div>
     <div class="ctrl">
       <label for="height">Launch height h <output id="heightOut"></output></label>
-      <input id="height" type="range" min="0" max="20" step="0.5" value="0">
+      <input id="height" type="range" min="0" max="3" step="0.1" value="0">
     </div>
 
     <div class="buttons">
@@ -117,7 +117,7 @@
   <h2>Try this</h2>
   <ol>
     <li>With h = 0, predict which angle gives the greatest range. Test it. Which pairs of angles give the same range?</li>
-    <li>Raise the launch height to 10 m. Is 45° still the angle for maximum range?</li>
+    <li>Raise the launch height to 3.0 m. Is 45° still the angle for maximum range?</li>
     <li>Watch v<sub>x</sub> and v<sub>y</sub> during flight. Which one changes, and at what rate?</li>
   </ol>
 </div></div>
@@ -162,8 +162,8 @@
   let vView = 0, fs = 15;
   function makeView() {
     const vmax = vView, hSet = +el('height').value;
-    const xMax = Math.max(10, rangeEnvelope(hSet, vmax) * 1.05);
-    const yMax = Math.max(5, (hSet + vmax * vmax / (2 * g)) * 1.08);
+    const xMax = Math.max(1, rangeEnvelope(hSet, vmax) * 1.05);
+    const yMax = Math.max(0.5, (hSet + vmax * vmax / (2 * g)) * 1.08);
     fs = Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width))));  // readable on small screens
     const padL = fs * 4.2, padR = 20, padT = 20, padB = fs * 3;
     const w = cv.width - padL - padR, hgt = cv.height - padT - padB;
@@ -292,7 +292,8 @@
     if (!el('keep').checked) ghosts = [];
     running = false; landed = false; t = 0;
     p = params();
-    vView = ghosts.length ? Math.max(vView, p.v0) : p.v0;
+    // floor of 1 m/s keeps the axes and arrow scale sensible when v0 is 0
+    vView = Math.max(1, ghosts.length ? Math.max(vView, p.v0) : p.v0);
     view = makeView();
     trail = [[0, p.h]];
     updateButtons(); draw();
@@ -306,8 +307,8 @@
 
   ['angle', 'speed', 'height'].forEach(id => el(id).addEventListener('input', () => {
     syncLabels();
-    if (id === 'height') ghosts = [];   // earlier paths start from a different height
-    reset(true);
+    if (id === 'height') { ghosts = []; reset(false); }  // earlier paths started from a different height
+    else reset(true);
   }));
   el('play').addEventListener('click', () => {
     if (landed) reset(true);
