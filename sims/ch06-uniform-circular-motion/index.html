@@ -126,21 +126,14 @@
     </fieldset>
     <fieldset class="checks">
       <legend>Options</legend>
-      <label><input type="checkbox" id="showCalc" checked> Show calculated values</label>
       <label><input type="checkbox" id="beep"> Beep at each completed rotation</label>
     </fieldset>
 
     <table class="readouts">
       <caption class="sr-only">Current values</caption>
       <tr><th scope="row">Rotations completed</th><td id="rRot"></td></tr>
-      <tr class="calc"><th scope="row">Period T = 2πr/v</th><td id="rT"></td></tr>
-      <tr class="calc"><th scope="row">Frequency f = 1/T</th><td id="rF"></td></tr>
-      <tr class="calc"><th scope="row">Angular speed ω = v/r</th><td id="rW"></td></tr>
-      <tr class="calc"><th scope="row">Centripetal acceleration a<sub>c</sub> = v²/r</th><td id="rA"></td></tr>
-      <tr class="calc"><th scope="row">Centripetal force F<sub>c</sub> = mv²/r</th><td id="rFc"></td></tr>
     </table>
-    <p class="note" id="calcNote" hidden>Calculated values are hidden. Measure the period yourself.</p>
-    <p class="note">Motion runs in real time, counterclockwise. The view zooms to fit the circle; use the 1 m grid and the 2 m scale bar to judge size. Arrow lengths grow with each value (each kind of vector has its own scale); inward arrows are shortened if they would pass the center. As with any real turntable, each rotation takes very slightly more or less time than 2πr/v.</p>
+    <p class="note">Motion runs in real time, counterclockwise. The view zooms to fit the circle; use the 1 m grid and the 2 m scale bar to judge size. Arrow lengths grow with each value (each kind of vector has its own scale); inward arrows are shortened if they would pass the center. As with any real turntable, each rotation takes very slightly more or less time than the one before.</p>
 
     <!-- Screen-reader announcements: only at events, never every frame -->
     <div id="status" role="status" class="sr-only"></div>
@@ -164,7 +157,7 @@
   <p id="measError" class="error"></p>
   <div class="tablewrap" tabindex="0" role="region" aria-label="Recorded measurements, scrollable">
     <table class="data" id="trialTable" hidden>
-      <caption>Your measurements. Your speed = 2πr × rotations ÷ your time.</caption>
+      <caption>Your measurements</caption>
       <thead><tr id="trialHead"></tr></thead>
       <tbody id="trialBody"></tbody>
     </table>
@@ -298,12 +291,9 @@
     const ox = c + R * Math.cos(theta), oy = c - R * Math.sin(theta);
     const ux = -Math.sin(theta), uy = -Math.cos(theta);   // tangent (direction of motion) on screen
     const ix = (c - ox) / R, iy = (c - oy) / R;            // unit vector toward center
-    // 'Center' label on the side away from the object, where no arrows point
-    label('Center', '', c + ix * (fs * 2.6), c + iy * (fs * 1.8));
     const objR = 9 + 5 * Math.cbrt(m);                     // bigger mass, bigger object
 
     const ac = vActual() * vActual() / r, Fc = m * ac;
-    const showCalc = el('showCalc').checked;
     const cap = Math.max(10, R - objR - 14);
     if (el('showF').checked) {
       const len = Math.min(cap, objR + 14 + 100 * Fc / 250);
@@ -335,12 +325,6 @@
   // ---- Readouts and text alternative -------------------------------------
   function readouts() {
     el('rRot').textContent = laps;
-    const T = periodNominal(), ac = v * v / r;
-    el('rT').textContent = num(T) + ' s';
-    el('rF').textContent = num(1 / T) + ' Hz';
-    el('rW').textContent = num(v / r) + ' rad/s';
-    el('rA').textContent = num(ac) + ' m/s²';
-    el('rFc').textContent = num(m * ac) + ' N';
   }
   function setupText() { return `An object of mass ${m.toFixed(1)} kg moves counterclockwise at ${v.toFixed(1)} m/s in a horizontal circle of radius ${r.toFixed(1)} m around the marked center.`; }
   function describe() {
@@ -350,9 +334,7 @@
     if (el('showA').checked) shown.push('the centripetal acceleration arrow, pointing toward the center');
     if (el('showF').checked) shown.push('the centripetal force arrow, also pointing toward the center');
     const vec = shown.length ? ' Showing ' + shown.join('; ') + '.' : ' No vectors shown.';
-    const calc = el('showCalc').checked
-      ? ` Period ${num(periodNominal())} s, centripetal acceleration ${num(v * v / r)} m/s², centripetal force ${num(m * v * v / r)} N.` : '';
-    el('desc').textContent = `${setupText()} ${laps} ${laps === 1 ? 'rotation' : 'rotations'} completed; the object is ${deg}° past the start line.${vec}${calc}`;
+    el('desc').textContent = `${setupText()} ${laps} ${laps === 1 ? 'rotation' : 'rotations'} completed; the object is ${deg}° past the start line.${vec}`;
   }
   function announce(msg) {
     el('status').textContent = '';
@@ -418,11 +400,6 @@
     el('radius').setAttribute('aria-valuetext', rv + ' meters');
     el('mass').setAttribute('aria-valuetext', mv + ' kilograms');
   }
-  function applyCalcVisibility() {
-    const show = el('showCalc').checked;
-    document.querySelectorAll('.calc').forEach(e => e.hidden = !show);
-    el('calcNote').hidden = show;
-  }
   ['speed', 'radius', 'mass'].forEach(id => el(id).addEventListener('input', () => {
     syncLabels(); readSettings();
     // a new speed or radius starts a fresh count so timings aren't mixed
@@ -430,10 +407,9 @@
     draw(); readouts(); describe();
   }));
   ['showV', 'showA', 'showF'].forEach(id => el(id).addEventListener('change', () => { draw(); describe(); }));
-  el('showCalc').addEventListener('change', () => { applyCalcVisibility(); draw(); describe(); renderTrials(); });
 
   el('play').addEventListener('click', () => {
-    if (running) { setRunning(false); readouts(); describe(); announce(`Paused. ${laps} rotations completed.`); }
+    if (running) { setRunning(false); readouts(); describe(); announce(`Paused. ${laps} ${laps === 1 ? 'rotation' : 'rotations'} completed.`); }
     else {
       if (el('beep').checked) beep();   // unlocks audio on the first click
       setRunning(true); announce((theta > 0 ? 'Resumed. ' : 'Playing. ') + setupText());
@@ -451,19 +427,13 @@
   });
 
   // ---- Student measurements --------------------------------------------------
-  function columns() {
-    const base = [['Trial', 'n'], ['v set (m/s)', 'v'], ['r (m)', 'r'], ['m (kg)', 'm'], ['Rotations timed', 'N'],
-                  ['Your time (s)', 't'], ['Your period (s)', 'Tm'], ['Your speed (m/s)', 'vm']];
-    const calc = [['Period 2πr/v (s)', 'Tp'], ['Difference (%)', 'd'], ['a<sub>c</sub> (m/s²)', 'ac'], ['F<sub>c</sub> (N)', 'Fc']];
-    return el('showCalc').checked ? base.concat(calc) : base;
-  }
+  const COLS = [['Trial', 'n'], ['v (m/s)', 'v'], ['r (m)', 'r'], ['m (kg)', 'm'], ['Rotations timed', 'N'], ['Your time (s)', 't']];
   function cell(row, k) {
-    const f = { n: row.n, v: row.v.toFixed(1), r: row.r.toFixed(1), m: row.m.toFixed(1), N: row.N, t: row.t.toFixed(2),
-                Tm: num(row.Tm), vm: num(row.vm), Tp: num(row.Tp), d: pct(row.d), ac: num(row.ac), Fc: num(row.Fc) };
+    const f = { n: row.n, v: row.v.toFixed(1), r: row.r.toFixed(1), m: row.m.toFixed(1), N: row.N, t: row.t.toFixed(2) };
     return f[k];
   }
   function renderTrials() {
-    const cols = columns();
+    const cols = COLS;
     el('trialHead').innerHTML = cols.map(c => `<th scope="col">${c[0]}</th>`).join('');
     el('trialBody').innerHTML = trials.map(row => '<tr>' + cols.map(c => `<td>${cell(row, c[1])}</td>`).join('') + '</tr>').join('');
     const any = trials.length > 0;
@@ -480,20 +450,17 @@
     const N = Number(nIn.value), t = Number(tIn.value);
     if (!Number.isInteger(N) || N < 1 || N > 100) return fieldError(nIn, 'Enter a whole number of rotations from 1 to 100.');
     if (!isFinite(t) || t <= 0 || tIn.value.trim() === '') return fieldError(tIn, 'Enter your measured time in seconds, for example 31.4.');
-    const Tm = t / N, vm = 2 * Math.PI * r * N / t, Tp = periodNominal();
-    const row = { n: trials.length + 1, v, r, m, N, t, Tm, vm, Tp, d: (Tm - Tp) / Tp * 100, ac: v * v / r, Fc: m * v * v / r };
+    const row = { n: trials.length + 1, v, r, m, N, t };
     trials.push(row); renderTrials();
     tIn.value = '';
-    const extra = el('showCalc').checked ? ` The calculated period is ${num(Tp)} s, a difference of ${pct(row.d)} percent.` : '';
-    announce(`Trial ${row.n} recorded. Your period ${num(Tm)} s, your speed ${num(vm)} m/s.${extra}`);
+    announce(`Trial ${row.n} recorded: ${N} ${N === 1 ? 'rotation' : 'rotations'} in ${t.toFixed(2)} s.`);
   });
   el('clear').addEventListener('click', () => {
     trials = []; renderTrials(); el('nRot').focus(); announce('All measurements cleared.');
   });
   el('csv').addEventListener('click', () => {
-    const head = 'trial,v set (m/s),r (m),m (kg),rotations timed,your time (s),your period (s),your speed (m/s),period 2pi r/v (s),difference (%),a_c (m/s^2),F_c (N)';
-    const lines = trials.map(r0 => [r0.n, r0.v.toFixed(1), r0.r.toFixed(1), r0.m.toFixed(1), r0.N, r0.t.toFixed(2),
-      r0.Tm.toFixed(4), r0.vm.toFixed(4), r0.Tp.toFixed(4), r0.d.toFixed(2), r0.ac.toFixed(4), r0.Fc.toFixed(4)].join(','));
+    const head = 'trial,v (m/s),r (m),m (kg),rotations timed,your time (s)';
+    const lines = trials.map(r0 => [r0.n, r0.v.toFixed(1), r0.r.toFixed(1), r0.m.toFixed(1), r0.N, r0.t.toFixed(2)].join(','));
     const blob = new Blob([head + '\n' + lines.join('\n') + '\n'], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'circular_motion_measurements.csv';
@@ -503,10 +470,7 @@
 
   window.addEventListener('resize', draw);
 
-  // Link option for homework: ...?calc=hidden starts with calculated values hidden
-  if (new URLSearchParams(location.search).get('calc') === 'hidden') el('showCalc').checked = false;
-
-  readSettings(); syncLabels(); applyCalcVisibility(); reset(); renderTrials();
+  readSettings(); syncLabels(); reset(); renderTrials();
   draw(); readouts(); describe();
 })();
 </script>
