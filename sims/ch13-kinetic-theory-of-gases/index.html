@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kinetic Theory of Gases</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd;
+    /* Graphic colors: each is at least 3:1 against the plot background (WCAG 1.4.11) */
+    --accent: #0072B2;          /* blue        – molecules, histogram bars   5.05:1 */
+    --track: #D55E00;           /* vermillion  – tracked molecule ring       3.76:1 */
+    --vrms: #A66C00;            /* dark orange – v_rms marker               4.29:1 */
+    --axis: #6B7480;            /* walls, axes                              4.61:1 */
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 16px 20px;
+            max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+  @media (max-width: 1150px) { .views { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  #box { max-width: 560px; margin: 0 auto; }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 14px; }
+  .ctrl .lab { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select { font: inherit; padding: 4px 6px; width: 100%; margin-top: 2px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #b8c0cb;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(a, button, input, select, summary):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .checks label { display: block; margin: 4px 0; font-size: .95rem; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 8px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: .95rem; vertical-align: top; }
+  table.readouts th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  table.readouts th.group { font-weight: 700; padding-top: 10px; border-top: 2px solid var(--line); }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin: 8px 0 0;
+            list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  table.data { margin-top: 8px; width: 100%; }
+  table.data th, table.data td { padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data th { font-size: .9rem; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+  .wide { max-width: 1400px; margin: 0 auto; padding: 0 20px 16px; }
+  .wide ol { margin: 6px 0 0; padding-left: 22px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Kinetic Theory of Gases</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 13.4</span>
+</header>
+
+<main class="layout">
+  <div class="views">
+    <section class="panel" aria-labelledby="boxHeading">
+      <h2 id="boxHeading">Molecules in a cube</h2>
+      <canvas id="box" width="600" height="600" role="img"
+              aria-label="Side view of a cube of gas molecules moving in straight lines and bouncing off the walls. A text summary follows."></canvas>
+      <ul class="legend" aria-label="Key for the cube">
+        <li><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="#0072B2" stroke="#1d2430" stroke-width="1"/></svg>Molecule (hard sphere, drawn to scale)</li>
+        <li><svg width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="7" fill="#fff" stroke="#D55E00" stroke-width="3"/><circle cx="10" cy="10" r="2.5" fill="#1d2430"/></svg>Tracked molecule (ring), with dashed path</li>
+      </ul>
+      <p class="summary"><strong>Cube summary:</strong> <span id="boxDesc"></span></p>
+    </section>
+
+    <section class="panel" aria-labelledby="histHeading">
+      <h2 id="histHeading">Speed distribution</h2>
+      <canvas id="hist" width="800" height="480" role="img"
+              aria-label="Histogram of molecular speeds with the Maxwell–Boltzmann prediction drawn as a curve. A text summary follows, and the bin counts are in the table below it."></canvas>
+      <ul class="legend" aria-label="Key for the histogram">
+        <li><svg width="16" height="14" aria-hidden="true"><rect x="1" y="1" width="14" height="12" fill="#0072B2" stroke="#1d2430" stroke-width="1"/></svg>Bars: molecules in each speed range</li>
+        <li><svg width="24" height="10" aria-hidden="true"><line x1="1" y1="5" x2="23" y2="5" stroke="#1d2430" stroke-width="3"/></svg>Solid curve: Maxwell–Boltzmann prediction</li>
+        <li><svg width="24" height="10" aria-hidden="true"><line x1="1" y1="5" x2="23" y2="5" stroke="#A66C00" stroke-width="3" stroke-dasharray="5 3"/></svg>Dashed line labeled v<sub>rms</sub></li>
+      </ul>
+      <p class="summary"><strong>Histogram summary:</strong> <span id="histDesc"></span></p>
+      <details>
+        <summary>Speed histogram data</summary>
+        <div class="tablewrap" tabindex="0" role="region" aria-label="Speed histogram data, scrollable">
+          <table class="data">
+            <caption id="binCaption"></caption>
+            <thead><tr><th scope="col">Speed range (m/s)</th><th scope="col">Molecules</th><th scope="col">Maxwell–Boltzmann prediction</th></tr></thead>
+            <tbody id="binBody"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Gas settings</h2>
+    <div class="ctrl">
+      <label for="gas" class="lab">Gas</label>
+      <select id="gas">
+        <option value="He">Helium, He (4.00 u)</option>
+        <option value="Ne">Neon, Ne (20.2 u)</option>
+        <option value="N2">Nitrogen, N₂ (28.0 u)</option>
+        <option value="O2">Oxygen, O₂ (32.0 u)</option>
+        <option value="Ar">Argon, Ar (39.9 u)</option>
+        <option value="CO2">Carbon dioxide, CO₂ (44.0 u)</option>
+        <option value="Xe">Xenon, Xe (131 u)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="temp">Temperature T</label><output id="tempOut" for="temp" aria-hidden="true"></output></div>
+      <input id="temp" type="range" min="50" max="1000" step="10" value="300">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="num">Number of molecules N</label><output id="numOut" for="num" aria-hidden="true"></output></div>
+      <input id="num" type="range" min="10" max="300" step="10" value="100">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="side">Cube side length L</label><output id="sideOut" for="side" aria-hidden="true"></output></div>
+      <input id="side" type="range" min="10" max="50" step="1" value="20">
+    </div>
+
+    <div class="buttons">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button" aria-describedby="resetHint">Reset</button>
+      <button id="equal" type="button" aria-describedby="equalHint">Start all at one speed</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the motion by a short time and pauses.</p>
+    <p id="equalHint" class="sr-only">Gives every molecule the same speed, the rms speed, in a random direction. With collisions on, watch the speeds spread out.</p>
+    <p id="resetHint" class="sr-only">Gives every molecule a new random position and velocity at the same temperature, and restarts the pressure measurement.</p>
+
+    <div class="checks">
+      <label><input type="checkbox" id="collide" checked> Molecules collide with each other</label>
+      <label><input type="checkbox" id="track" checked> Track one molecule</label>
+      <label>Playback speed
+        <select id="rate">
+          <option value="1">1×</option>
+          <option value="0.5">0.5×</option>
+          <option value="0.25">0.25×</option>
+        </select>
+      </label>
+    </div>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values</caption>
+      <tr><th scope="row">Volume V = L³</th><td id="rV"></td></tr>
+      <tr><th scope="row">v<sub>rms</sub> = √(3kT/m)</th><td id="rVrms"></td></tr>
+      <tr><th scope="row">Average KE = (3/2)kT</th><td id="rKE"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Pressure</th></tr>
+      <tr><th scope="row">Measured from wall collisions</th><td id="rPm"></td></tr>
+      <tr><th scope="row">Ideal gas law, P = NkT/V</th><td id="rPt"></td></tr>
+      <tr><th scope="row">Difference</th><td id="rDiff"></td></tr>
+      <tr><th scope="row">Averaged over</th><td id="rAvg"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Collisions between molecules</th></tr>
+      <tr><th scope="row">Collisions so far</th><td id="rColl"></td></tr>
+      <tr><th scope="row">Molecules' own volume</th><td id="rFrac"></td></tr>
+      <tr><th scope="row">Slow motion</th><td id="rSlow"></td></tr>
+    </table>
+
+    <div class="buttons" style="margin-top:12px">
+      <button id="record" type="button">Record trial</button>
+    </div>
+    <p class="note">Molecules move in 3D; the view shows x and y (depth not drawn). They are hard spheres 0.6 nm across, drawn to scale. Real small molecules are about 0.3–0.4 nm; these are a little larger so collisions happen often enough to see. All collisions are elastic, and there are no other forces between molecules. When the molecules' own volume is more than a few percent of the box, measured pressure runs higher than the ideal gas law predicts. k = 1.38 × 10<sup>−23</sup> J/K.</p>
+
+    <!-- Screen-reader announcements: only at events (play, pause, step, reset, record), never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<section class="wide" aria-labelledby="trialHeading"><div class="panel">
+  <h2 id="trialHeading">Recorded trials</h2>
+  <p id="trialEmpty" class="note" style="margin-top:0">Press Play, let the pressure reading settle, then press Record trial. Each trial adds a row here.</p>
+  <div class="tablewrap" tabindex="0" role="region" aria-label="Recorded trials, scrollable">
+    <table class="data" id="trialTable" hidden>
+      <caption>Pressure measured from wall collisions compared with P = NkT/V</caption>
+      <thead>
+        <tr>
+          <th scope="col">Trial</th><th scope="col">Collisions</th><th scope="col">Gas</th><th scope="col">T (K)</th><th scope="col">N</th>
+          <th scope="col">L (nm)</th><th scope="col">V (nm³)</th><th scope="col">v<sub>rms</sub> (m/s)</th>
+          <th scope="col">Avg KE (10<sup>−21</sup> J)</th><th scope="col">P measured (kPa)</th>
+          <th scope="col">P = NkT/V (kPa)</th><th scope="col">Difference (%)</th><th scope="col">Averaged over (ps)</th>
+        </tr>
+      </thead>
+      <tbody id="trialBody"></tbody>
+    </table>
+  </div>
+  <div class="buttons" style="margin:10px 0 0">
+    <button id="csv" type="button" disabled>Download trials as CSV</button>
+    <button id="clear" type="button" disabled>Clear trials</button>
+  </div>
+</div></section>
+
+<section class="wide" aria-labelledby="tryHeading" style="padding-bottom:32px"><div class="panel">
+  <h2 id="tryHeading">Try this</h2>
+  <ol>
+    <li>Turn collisions on and press <strong>Start all at one speed</strong>. Watch the histogram as you play. What shape does it settle into, and how long does that take? Try it again with collisions off.</li>
+    <li>Record a trial at 300 K, then at 600 K. By what factor did the pressure change? The average kinetic energy? v<sub>rms</sub>?</li>
+    <li>At constant temperature, record trials with L = 20 nm and L = 40 nm. By what factor did the volume change? The pressure? Check that PV stays the same.</li>
+    <li>Switch from helium to xenon at the same temperature. Which changes, the average kinetic energy or v<sub>rms</sub>? Why?</li>
+    <li>Compare the difference between measured and predicted pressure with N = 10 and N = 300. Why does a real container of gas give a steady pressure?</li>
+    <li>Set N = 300 and L = 10 nm. The molecules now fill several percent of the box. Is the measured pressure higher or lower than NkT/V? Why does the molecules' size matter?</li>
+  </ol>
+</div></section>
+
+<script>
+(() => {
+  const K = 1.380649e-23, U = 1.66053907e-27, ATM = 101325;
+  const GASES = {
+    He:  { name: 'helium',         short: 'He',  M: 4.00 },
+    Ne:  { name: 'neon',           short: 'Ne',  M: 20.18 },
+    N2:  { name: 'nitrogen',       short: 'N₂',  M: 28.01 },
+    O2:  { name: 'oxygen',         short: 'O₂',  M: 32.00 },
+    Ar:  { name: 'argon',          short: 'Ar',  M: 39.95 },
+    CO2: { name: 'carbon dioxide', short: 'CO₂', M: 44.01 },
+    Xe:  { name: 'xenon',          short: 'Xe',  M: 131.29 },
+  };
+  const BINS = 20;
+  const D = 0.6e-9;                   // hard-sphere diameter of every molecule (m)
+  const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const INK = '#1d2430';
+  const boxCv = el('box'), bctx = boxCv.getContext('2d');
+  const histCv = el('hist'), hctx = histCv.getContext('2d');
+
+  // ---- Number formatting (3 significant figures) ------------------------
+  const num = x => {
+    if (!isFinite(x)) return '—';
+    if (Math.abs(x) < 1e-12) return '0';
+    return Math.abs(x) >= 1000 ? Math.round(x).toString() : x.toPrecision(3);
+  };
+  const pct = d => { const r = Math.abs(d) < 0.05 ? 0 : d; return (r > 0 ? '+' : '') + r.toFixed(1); };
+  const sciParts = x => {
+    const e = Math.floor(Math.log10(Math.abs(x)));
+    let m = x / Math.pow(10, e);
+    let mStr = m.toPrecision(3);
+    if (+mStr >= 10) { mStr = (m / 10).toPrecision(3); return { m: mStr, e: e + 1 }; }
+    return { m: mStr, e };
+  };
+  const sciHTML = (x, unit) => { const s = sciParts(x); return `${s.m} × 10<sup>${String(s.e).replace('-', '−')}</sup> ${unit}`; };
+  const sciText = (x, unit) => { const s = sciParts(x); return `${s.m} times 10 to the ${s.e} ${unit}`; };
+
+  // ---- State ---------------------------------------------------------------
+  let gasKey, T, N, Lnm, L, m;        // settings (L in meters)
+  let mols = [];                      // {x,y,z,vx,vy,vz}
+  let trail = [];                     // tracked molecule path (x,y)
+  let running = false, lastFrame = null;
+  let timeScale = 1;                  // simulated seconds per real second
+  let simT = 0, impulse = 0, hits = 0;// pressure measurement accumulators
+  let collisions = 0;                 // molecule–molecule collisions since the last change
+  let trials = [];
+  let fs = 15;
+
+  function readSettings() {
+    gasKey = el('gas').value; T = +el('temp').value; N = +el('num').value;
+    Lnm = +el('side').value; L = Lnm * 1e-9; m = GASES[gasKey].M * U;
+  }
+  const vrmsTheory = () => Math.sqrt(3 * K * T / m);
+  const keTheory = () => 1.5 * K * T;
+  const pTheory = () => N * K * T / (L * L * L);
+  const volFrac = () => 100 * N * (Math.PI / 6) * D * D * D / (L * L * L);
+  const pMeasured = () => simT > 0 ? impulse / (6 * L * L * simT) : NaN;
+
+  // Standard normal (Box–Muller)
+  function gauss() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function newMol() {
+    const s = Math.sqrt(K * T / m);  // each velocity component is Gaussian with this spread
+    return { x: Math.random() * L, y: Math.random() * L, z: Math.random() * L, vx: s * gauss(), vy: s * gauss(), vz: s * gauss() };
+  }
+  // Scale all speeds so the sample's average KE is exactly (3/2)kT (this is what temperature means)
+  function setTemperatureExactly() {
+    let sum = 0;
+    for (const q of mols) sum += q.vx * q.vx + q.vy * q.vy + q.vz * q.vz;
+    if (sum === 0) return;
+    const f = Math.sqrt(N * 3 * K * T / (m * sum));
+    for (const q of mols) { q.vx *= f; q.vy *= f; q.vz *= f; }
+  }
+  function resetMeasure() { simT = 0; impulse = 0; hits = 0; collisions = 0; trail = []; }
+  function updateTimeScale() { timeScale = L / vrmsTheory() / 1.5; }  // a typical molecule crosses the cube in ~1.5 s on screen
+
+  // ---- Motion ----------------------------------------------------------------
+  // Elastic hard-sphere collisions between equal masses: swap the velocity components
+  // along the line joining the centers. Conserves momentum and kinetic energy.
+  function collideAll() {
+    const d2 = D * D, n = mols.length;
+    for (let i = 0; i < n; i++) {
+      const a = mols[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = mols[j];
+        const dx = a.x - b.x; if (dx > D || dx < -D) continue;
+        const dy = a.y - b.y; if (dy > D || dy < -D) continue;
+        const dz = a.z - b.z; if (dz > D || dz < -D) continue;
+        const r2 = dx * dx + dy * dy + dz * dz;
+        if (r2 >= d2 || r2 === 0) continue;
+        const dot = (a.vx - b.vx) * dx + (a.vy - b.vy) * dy + (a.vz - b.vz) * dz;
+        if (dot >= 0) continue;          // already moving apart
+        const f = dot / r2;
+        a.vx -= f * dx; a.vy -= f * dy; a.vz -= f * dz;
+        b.vx += f * dx; b.vy += f * dy; b.vz += f * dz;
+        collisions++;
+      }
+    }
+  }
+  function moveAndBounce(dt) {
+    for (const q of mols) {
+      q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+      for (const [p, v] of [['x', 'vx'], ['y', 'vy'], ['z', 'vz']]) {
+        while (q[p] < 0 || q[p] > L) {
+          if (q[p] < 0) q[p] = -q[p]; else q[p] = 2 * L - q[p];
+          q[v] = -q[v];
+          impulse += 2 * m * Math.abs(q[v]); hits++;
+        }
+      }
+    }
+  }
+  function advance(dt) {
+    const collide = el('collide').checked;
+    let nsub = 1;
+    if (collide) {
+      // small sub-steps so two molecules can't pass through each other in one step
+      let vmax = 0;
+      for (const q of mols) vmax = Math.max(vmax, Math.hypot(q.vx, q.vy, q.vz));
+      nsub = Math.min(400, Math.max(1, Math.ceil(2 * vmax * dt / (0.3 * D))));
+    }
+    const h = dt / nsub;
+    for (let k = 0; k < nsub; k++) { moveAndBounce(h); if (collide) collideAll(); }
+    simT += dt;
+    if (mols.length) { trail.push([mols[0].x, mols[0].y]); if (trail.length > 240) trail.shift(); }
+  }
+  // Every molecule gets the rms speed in a random direction (same temperature, no spread)
+  function equalSpeeds() {
+    const v = vrmsTheory();
+    for (const q of mols) {
+      const cz = 2 * Math.random() - 1, ph = 2 * Math.PI * Math.random(), sz = Math.sqrt(1 - cz * cz);
+      q.vx = v * sz * Math.cos(ph); q.vy = v * sz * Math.sin(ph); q.vz = v * cz;
+    }
+  }
+
+  // ---- Drawing: cube ------------------------------------------------------
+  function scaleFont(cv) { return Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width)))); }
+  function drawBox() {
+    const W = boxCv.width, pad = 24, S = W - 2 * pad;
+    bctx.clearRect(0, 0, W, W);
+    bctx.strokeStyle = css('--axis'); bctx.lineWidth = 3; bctx.strokeRect(pad, pad, S, S);
+    const X = x => pad + (x / L) * S, Y = y => pad + S - (y / L) * S;
+    const rpx = Math.max(2.5, (D / 2) / L * S);   // true size on screen
+    bctx.save(); bctx.beginPath(); bctx.rect(pad + 1.5, pad + 1.5, S - 3, S - 3); bctx.clip();
+    bctx.fillStyle = css('--accent'); bctx.strokeStyle = INK; bctx.lineWidth = 1;
+    for (let i = 0; i < mols.length; i++) {
+      if (i === 0 && el('track').checked) continue;
+      bctx.beginPath(); bctx.arc(X(mols[i].x), Y(mols[i].y), rpx, 0, Math.PI * 2); bctx.fill();
+      if (rpx > 5) bctx.stroke();
+    }
+    if (el('track').checked && mols.length) {
+      if (trail.length > 1) {
+        bctx.setLineDash([8, 6]); bctx.strokeStyle = css('--track'); bctx.lineWidth = 2;
+        bctx.beginPath(); bctx.moveTo(X(trail[0][0]), Y(trail[0][1]));
+        for (const p of trail) bctx.lineTo(X(p[0]), Y(p[1]));
+        bctx.stroke(); bctx.setLineDash([]);
+      }
+      const q = mols[0];
+      bctx.fillStyle = '#fff'; bctx.strokeStyle = css('--track'); bctx.lineWidth = 4;
+      const rr = Math.max(10, rpx + 2);
+      bctx.beginPath(); bctx.arc(X(q.x), Y(q.y), rr, 0, Math.PI * 2); bctx.fill(); bctx.stroke();
+      bctx.fillStyle = INK; bctx.beginPath(); bctx.arc(X(q.x), Y(q.y), 3.5, 0, Math.PI * 2); bctx.fill();
+    }
+    bctx.restore();
+  }
+
+  // ---- Drawing: histogram ----------------------------------------------------
+  let binData = [];
+  function computeBins() {
+    const vmax = 2.6 * vrmsTheory(), dv = vmax / BINS;
+    const counts = new Array(BINS).fill(0);
+    let over = 0;
+    for (const q of mols) {
+      const v = Math.hypot(q.vx, q.vy, q.vz), i = Math.floor(v / dv);
+      if (i < BINS) counts[i]++; else over++;
+    }
+    const a = m / (2 * K * T), norm = 4 * Math.PI * Math.pow(a / Math.PI, 1.5);
+    const f = v => norm * v * v * Math.exp(-a * v * v);
+    // predicted count per bin: N × ∫ f dv (Simpson's rule)
+    const pred = counts.map((_, i) => {
+      const v0 = i * dv, v1 = v0 + dv, vm = (v0 + v1) / 2;
+      return N * dv / 6 * (f(v0) + 4 * f(vm) + f(v1));
+    });
+    binData = { vmax, dv, counts, pred, over, f };
+  }
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+    return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * mag;
+  }
+  function drawHist() {
+    const W = histCv.width, H = histCv.height;
+    fs = scaleFont(histCv);
+    const padL = fs * 4, padR = 24, padT = 20, padB = fs * 3.2;
+    const w = W - padL - padR, h = H - padT - padB;
+    const { vmax, dv, counts, pred, f } = binData;
+    const peakPred = N * f(Math.sqrt(2 * K * T / m)) * dv;
+    const yMax = Math.max(4, Math.max(...counts), peakPred) * 1.15;
+    const X = v => padL + v / vmax * w, Y = c => padT + h - c / yMax * h;
+    hctx.clearRect(0, 0, W, H);
+    hctx.font = fs + 'px system-ui, sans-serif'; hctx.fillStyle = '#5b6575';
+    // grid + y ticks
+    const ys = niceStep(yMax, 5);
+    hctx.textAlign = 'right';
+    for (let c = 0; c <= yMax; c += ys) {
+      hctx.strokeStyle = '#e6e9ee'; hctx.lineWidth = 1;
+      hctx.beginPath(); hctx.moveTo(padL, Y(c)); hctx.lineTo(W - padR, Y(c)); hctx.stroke();
+      hctx.fillText(+c.toFixed(6), padL - 8, Y(c) + fs * 0.35);
+    }
+    // x ticks
+    const xs = niceStep(vmax, 6);
+    hctx.textAlign = 'center';
+    for (let v = 0; v <= vmax + 1e-9; v += xs) hctx.fillText(+v.toFixed(6), X(v), H - padB + fs * 1.3);
+    hctx.fillText('Speed v (m/s)', padL + w / 2, H - fs * 0.5);
+    hctx.save(); hctx.translate(fs, padT + h / 2); hctx.rotate(-Math.PI / 2); hctx.fillText('Number of molecules', 0, 0); hctx.restore();
+    // bars
+    for (let i = 0; i < BINS; i++) {
+      if (!counts[i]) continue;
+      const x0 = X(i * dv) + 1, x1 = X((i + 1) * dv) - 1;
+      hctx.fillStyle = css('--accent'); hctx.fillRect(x0, Y(counts[i]), x1 - x0, Y(0) - Y(counts[i]));
+      hctx.strokeStyle = INK; hctx.lineWidth = 1; hctx.strokeRect(x0, Y(counts[i]), x1 - x0, Y(0) - Y(counts[i]));
+    }
+    // Maxwell–Boltzmann curve (expected molecules per bin width)
+    hctx.strokeStyle = INK; hctx.lineWidth = 3; hctx.beginPath();
+    for (let j = 0; j <= 200; j++) {
+      const v = vmax * j / 200, c = N * f(v) * dv;
+      j ? hctx.lineTo(X(v), Y(c)) : hctx.moveTo(X(v), Y(c));
+    }
+    hctx.stroke();
+    // axes
+    hctx.strokeStyle = css('--axis'); hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(padL, padT); hctx.lineTo(padL, Y(0)); hctx.lineTo(W - padR, Y(0)); hctx.stroke();
+    // v_rms marker, dashed, with a text label
+    const vr = vrmsTheory();
+    hctx.setLineDash([10, 6]); hctx.strokeStyle = css('--vrms'); hctx.lineWidth = 3;
+    hctx.beginPath(); hctx.moveTo(X(vr), Y(0)); hctx.lineTo(X(vr), padT + fs * 1.6); hctx.stroke(); hctx.setLineDash([]);
+    hctx.fillStyle = INK; hctx.textAlign = 'left';
+    hctx.font = 'italic 600 ' + fs + 'px system-ui, sans-serif';
+    const lx = X(vr) + 6, ly = padT + fs * 1.2;
+    hctx.fillText('v', lx, ly);
+    const wv = hctx.measureText('v').width;
+    hctx.font = '600 ' + Math.round(fs * 0.7) + 'px system-ui, sans-serif';
+    hctx.fillText('rms', lx + wv + 1, ly + fs * 0.3);
+    const wr = hctx.measureText('rms').width;
+    hctx.font = '600 ' + fs + 'px system-ui, sans-serif';
+    hctx.fillText(' = ' + num(vr) + ' m/s', lx + wv + wr + 2, ly);
+  }
+
+  // ---- Readouts and text alternatives -------------------------------------
+  function readouts() {
+    const pm = pMeasured(), pt = pTheory();
+    el('rV').innerHTML = sciHTML(L * L * L, 'm³');
+    el('rVrms').textContent = num(vrmsTheory()) + ' m/s';
+    el('rKE').innerHTML = sciHTML(keTheory(), 'J');
+    el('rPm').textContent = isFinite(pm) ? `${num(pm / 1000)} kPa (${num(pm / ATM)} atm)` : '— (press Play)';
+    el('rPt').textContent = `${num(pt / 1000)} kPa (${num(pt / ATM)} atm)`;
+    el('rDiff').textContent = isFinite(pm) ? pct((pm - pt) / pt * 100) + ' %' : '—';
+    el('rAvg').textContent = `${num(simT * 1e12)} ps, ${hits} wall hits`;
+    el('rSlow').textContent = `1 s on screen = ${num(timeScale * 1e12)} ps`;
+    el('rColl').textContent = el('collide').checked ? String(collisions) : 'off';
+    el('rFrac').textContent = volFrac().toPrecision(2) + ' % of the box';
+  }
+  function setupText() {
+    return `${N} ${GASES[gasKey].name} molecules at ${T} K in a cube ${Lnm} nm on a side.`;
+  }
+  function pressureText(spoken) {
+    const pm = pMeasured(), pt = pTheory();
+    const th = `${num(pt / 1000)} kPa`;
+    if (!isFinite(pm)) return `The ideal gas law predicts a pressure of ${th}; no measurement yet.`;
+    const d = pct((pm - pt) / pt * 100);
+    return `Measured pressure ${num(pm / 1000)} kPa after ${num(simT * 1e12)} ps and ${hits} wall hits; the ideal gas law predicts ${th} (difference ${d} %).`;
+  }
+  function describe() {
+    el('boxDesc').textContent = `${setupText()} ${el('collide').checked ? `Molecules move in straight lines and bounce off the walls and off each other (${collisions} collisions between molecules so far).` : 'Molecules move in straight lines and bounce off the walls; collisions between molecules are off.'} ${pressureText()}`;
+    const { vmax, dv, counts, over } = binData;
+    let imax = 0; counts.forEach((c, i) => { if (c > counts[imax]) imax = i; });
+    const vp = Math.sqrt(2 * K * T / m);
+    el('histDesc').textContent =
+      `${N} molecular speeds sorted into ${BINS} bins from 0 to ${num(vmax)} m/s. ` +
+      `The tallest bar is ${num(imax * dv)}–${num((imax + 1) * dv)} m/s with ${counts[imax]} molecules` +
+      (over ? `; ${over} molecules are faster than ${num(vmax)} m/s and not shown` : '') + '. ' +
+      `The Maxwell–Boltzmann curve peaks at ${num(vp)} m/s (most probable speed), and the rms speed is ${num(vrmsTheory())} m/s. ` +
+      `The distribution rises from zero, peaks, then has a long tail toward high speeds.`;
+    el('binCaption').textContent = `Speed histogram for ${setupText()} Prediction = N × (fraction of molecules expected in that range).`;
+    el('binBody').innerHTML = counts.map((c, i) =>
+      `<tr><td>${num(i * dv)}–${num((i + 1) * dv)}</td><td>${c}</td><td>${binData.pred[i].toFixed(1)}</td></tr>`).join('') +
+      (over ? `<tr><td>above ${num(vmax)}</td><td>${over}</td><td>—</td></tr>` : '');
+  }
+  function announce(msg) {
+    el('status').textContent = '';
+    setTimeout(() => { el('status').textContent = msg.replace(/kPa/g, 'kilopascals').replace(/ ps\b/g, ' picoseconds').replace(/m\/s/g, 'meters per second').replace(/ nm\b/g, ' nanometers').replace(/ K\b/g, ' kelvin'); }, 50);
+  }
+
+  function refreshAll() { computeBins(); drawBox(); drawHist(); readouts(); describe(); }
+
+  // ---- Settings changes --------------------------------------------------
+  function syncLabels() {
+    const t = el('temp').value, n = el('num').value, s = el('side').value;
+    el('tempOut').textContent = t + ' K';
+    el('numOut').textContent = n;
+    el('sideOut').textContent = s + ' nm';
+    el('temp').setAttribute('aria-valuetext', t + ' kelvin');
+    el('num').setAttribute('aria-valuetext', n + ' molecules');
+    el('side').setAttribute('aria-valuetext', s + ' nanometers');
+    el('record').disabled = !(simT > 0);
+  }
+  function onSettings() {
+    if (!running) el('play').textContent = 'Play';
+    const oldL = L;
+    readSettings();
+    if (oldL && oldL !== L) for (const q of mols) { q.x *= L / oldL; q.y *= L / oldL; q.z *= L / oldL; }
+    while (mols.length < N) mols.push(newMol());
+    if (mols.length > N) mols.length = N;
+    setTemperatureExactly();          // also handles a new temperature or a new gas mass
+    resetMeasure(); updateTimeScale(); syncLabels(); refreshAll();
+  }
+  function fullReset() {
+    readSettings();
+    mols = Array.from({ length: N }, newMol);
+    setTemperatureExactly();
+    resetMeasure(); updateTimeScale(); syncLabels(); refreshAll();
+  }
+
+  // ---- Animation loop ------------------------------------------------------
+  let lastText = 0;
+  function frame(now) {
+    if (!running) { lastFrame = null; return; }
+    if (lastFrame !== null) {
+      const dtReal = Math.min(0.05, (now - lastFrame) / 1000) * +el('rate').value;
+      advance(dtReal * timeScale);
+    }
+    lastFrame = now;
+    drawBox(); readouts();
+    if (el('collide').checked) { computeBins(); drawHist(); }
+    if (now - lastText > 2000) { describe(); lastText = now; }  // visible summary refreshes every 2 s (not announced)
+    requestAnimationFrame(frame);
+  }
+  function setRunning(on) {
+    running = on;
+    el('play').textContent = on ? 'Pause' : (simT > 0 ? 'Resume' : 'Play');
+    el('record').disabled = !(simT > 0) && !on;
+    if (on) requestAnimationFrame(frame);
+  }
+
+  ['temp', 'num', 'side'].forEach(id => el(id).addEventListener('input', onSettings));
+  el('gas').addEventListener('change', onSettings);
+  el('play').addEventListener('click', () => {
+    if (running) {
+      setRunning(false); describe(); el('record').disabled = false;
+      announce('Paused. ' + pressureText());
+    } else {
+      setRunning(true); announce((simT > 0 ? 'Resumed. ' : 'Playing. ') + setupText());
+    }
+  });
+  el('step').addEventListener('click', () => {
+    setRunning(false);
+    advance(timeScale / 10);
+    el('play').textContent = 'Resume'; el('record').disabled = false;
+    computeBins(); drawBox(); drawHist(); readouts(); describe();
+    announce('Stepped. ' + pressureText());
+  });
+  el('reset').addEventListener('click', () => {
+    setRunning(false); fullReset(); el('play').textContent = 'Play';
+    announce('Reset. ' + setupText() + ' Pressure measurement restarted.');
+  });
+  el('track').addEventListener('change', drawBox);
+  el('collide').addEventListener('change', () => { resetMeasure(); refreshAll();
+    announce(el('collide').checked ? 'Collisions between molecules on.' : 'Collisions between molecules off.'); });
+  el('equal').addEventListener('click', () => {
+    setRunning(false); equalSpeeds(); resetMeasure(); refreshAll(); el('play').textContent = 'Play';
+    announce(`Every molecule now moves at ${num(vrmsTheory())} m/s. Press Play and watch the speed histogram.`);
+  });
+
+  // ---- Trials table -------------------------------------------------------
+  el('record').addEventListener('click', () => {
+    const pm = pMeasured(), pt = pTheory();
+    if (!isFinite(pm)) return;
+    const row = {
+      n: trials.length + 1, coll: el('collide').checked ? 'on' : 'off', gas: GASES[gasKey].short, gasName: GASES[gasKey].name, T, N, L: Lnm, V: Lnm ** 3,
+      vrms: vrmsTheory(), ke: keTheory(), pm, pt, diff: (pm - pt) / pt * 100, ps: simT * 1e12
+    };
+    trials.push(row);
+    el('trialBody').insertAdjacentHTML('beforeend',
+      `<tr><td>${row.n}</td><td>${row.coll}</td><td>${row.gas}</td><td>${row.T}</td><td>${row.N}</td><td>${row.L}</td><td>${row.V}</td>` +
+      `<td>${num(row.vrms)}</td><td>${(row.ke / 1e-21).toPrecision(3)}</td><td>${num(pm / 1000)}</td><td>${num(pt / 1000)}</td>` +
+      `<td>${pct(row.diff)}</td><td>${num(row.ps)}</td></tr>`);
+    el('trialTable').hidden = false; el('trialEmpty').hidden = true;
+    el('csv').disabled = false; el('clear').disabled = false;
+    describe();
+    announce(`Trial ${row.n} recorded. Measured ${num(pm / 1000)} kPa, predicted ${num(pt / 1000)} kPa, difference ${pct(row.diff)} percent.`);
+  });
+  el('clear').addEventListener('click', () => {
+    trials = []; el('trialBody').innerHTML = '';
+    el('trialTable').hidden = true; el('trialEmpty').hidden = false;
+    el('csv').disabled = true; el('clear').disabled = true;
+    el('record').focus();
+    announce('All trials cleared.');
+  });
+  el('csv').addEventListener('click', () => {
+    const head = 'trial,collisions,gas,T (K),N,L (m),V (m^3),v_rms (m/s),avg KE (J),P measured (Pa),P = NkT/V (Pa),difference (%),averaging time (s)';
+    const lines = trials.map(r => [r.n, r.coll, r.gasName, r.T, r.N, (r.L * 1e-9).toExponential(3), (r.V * 1e-27).toExponential(4),
+      r.vrms.toFixed(2), r.ke.toExponential(4), r.pm.toFixed(1), r.pt.toFixed(1), r.diff.toFixed(2), (r.ps * 1e-12).toExponential(4)].join(','));
+    const blob = new Blob([head + '\n' + lines.join('\n') + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'kinetic_theory_trials.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  window.addEventListener('resize', () => { drawBox(); drawHist(); });
+
+  fullReset();
+})();
+</script>
+</body>
+</html>
