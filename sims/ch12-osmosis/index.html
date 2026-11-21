@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Osmosis and Osmotic Pressure</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd;
+    /* Graphic colors: each is at least 3:1 against the plot background (WCAG 1.4.11) */
+    --water: #0072B2;           /* blue        – water molecules, osmotic-pressure line   5.05:1 */
+    --solute: #D55E00;          /* vermillion  – solute molecules                         3.76:1 */
+    --back: #A66C00;            /* dark orange – back-pressure line                       4.29:1 */
+    --axis: #6B7480;            /* membrane, axes                                         4.61:1 */
+    --liquid: #e3eef7;          /* liquid fill (decorative; tube outline carries the shape) */
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--water); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 20px;
+            max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .views { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 1200px) { .views { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 12px; }
+  .ctrl .lab { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--water); }
+  input[type=range] { width: 100%; accent-color: var(--water); }
+  select { font: inherit; padding: 4px 6px; width: 100%; margin-top: 2px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #b8c0cb;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--water); border-color: var(--water); color: #fff; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(a, button, input, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 4px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: .95rem; vertical-align: top; }
+  table.readouts th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  table.readouts th.group { font-weight: 700; padding-top: 10px; border-top: 2px solid var(--line); }
+  .verdict { margin: 4px 0 12px; padding: 8px 10px; border-radius: 8px; border: 2px solid var(--line); font-weight: 600; font-size: .95rem; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin: 8px 0 0;
+            list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  table.data { margin-top: 8px; width: 100%; }
+  table.data th, table.data td { padding: 4px 9px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data th { font-size: .85rem; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Osmosis and Osmotic Pressure</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 12.7</span>
+</header>
+
+<main class="layout">
+  <div class="views">
+    <section class="panel" aria-labelledby="tubeHeading">
+      <h2 id="tubeHeading">U-tube with a membrane</h2>
+      <canvas id="tube" width="900" height="640" role="img"
+              aria-label="A U-tube: pure water in the left arm, a solution in the right arm, separated by a membrane at the bottom. Molecules move and cross the membrane. A text summary follows."></canvas>
+      <ul class="legend" aria-label="Key for the U-tube">
+        <li><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="3.5" fill="#0072B2"/></svg>Water molecule (small dot)</li>
+        <li><svg width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="#D55E00" stroke="#1d2430" stroke-width="1.5"/><circle cx="11" cy="11" r="2.5" fill="#fff"/></svg>Solute molecule (large, outlined, white center)</li>
+        <li><svg width="14" height="26" aria-hidden="true"><line x1="7" y1="1" x2="7" y2="25" stroke="#6B7480" stroke-width="4" stroke-dasharray="6 3"/></svg>Membrane (gaps are the pores)</li>
+      </ul>
+      <p class="summary"><strong>U-tube summary:</strong> <span id="tubeDesc"></span></p>
+    </section>
+
+    <section class="panel" aria-labelledby="graphHeading">
+      <h2 id="graphHeading">Pressures over time</h2>
+      <canvas id="graph" width="800" height="560" role="img"
+              aria-label="Graph of the osmotic pressure difference and the back pressure versus time. A text summary follows, and the data is in the table below it."></canvas>
+      <ul class="legend" aria-label="Key for the graph">
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#0072B2" stroke-width="3"/></svg>Osmotic pressure difference (solid)</li>
+        <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#A66C00" stroke-width="3" stroke-dasharray="7 4"/></svg>Back pressure (dashed)</li>
+      </ul>
+      <p class="summary"><strong>Graph summary:</strong> <span id="graphDesc"></span></p>
+      <details>
+        <summary>Data table (every 0.5 h)</summary>
+        <p id="dataEmpty" class="note">Press Play; the table fills in as time passes.</p>
+        <div class="tablewrap" tabindex="0" role="region" aria-label="Osmosis data, scrollable">
+          <table class="data" id="dataTable" hidden>
+            <caption id="dataCaption"></caption>
+            <thead><tr>
+              <th scope="col">t (h)</th><th scope="col">Water level (m)</th><th scope="col">Solution level (m)</th>
+              <th scope="col">Δh (m)</th><th scope="col">c water side (mol/m³)</th><th scope="col">c solution side (mol/m³)</th>
+              <th scope="col">Osmotic pressure difference (kPa)</th><th scope="col">Back pressure (kPa)</th><th scope="col">Net water flow</th>
+            </tr></thead>
+            <tbody id="dataBody"></tbody>
+          </table>
+        </div>
+        <p><button id="csv" type="button" disabled>Download data as CSV</button></p>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+    <div class="ctrl">
+      <label for="solute" class="lab">Solute molecule</label>
+      <select id="solute">
+        <option value="suc">Small: sucrose (342 g/mol, 1 nm)</option>
+        <option value="dex" selected>Medium: dextran (10,000 g/mol, 5 nm)</option>
+        <option value="alb">Large: albumin (66,500 g/mol, 7 nm)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="pct">Solution concentration</label><output id="pctOut" for="pct" aria-hidden="true"></output></div>
+      <input id="pct" type="range" min="0" max="10" step="0.1" value="2">
+    </div>
+    <div class="ctrl">
+      <label for="membrane" class="lab">Membrane pore size</label>
+      <select id="membrane">
+        <option value="0.5">0.5 nm: water only (semipermeable)</option>
+        <option value="1.5">1.5 nm: lets sucrose through</option>
+        <option value="6">6 nm: lets sucrose and dextran through</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="papp">Extra pressure on solution (piston)</label><output id="pappOut" for="papp" aria-hidden="true"></output></div>
+      <input id="papp" type="range" min="0" max="50" step="0.5" value="0">
+    </div>
+
+    <p class="verdict" id="verdict"></p>
+
+    <div class="buttons">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button" aria-describedby="resetHint">Reset</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the simulation by 0.1 hour and pauses.</p>
+    <p id="resetHint" class="sr-only">Returns both arms to equal levels with all the solute on the right.</p>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values</caption>
+      <tr><th scope="row">Elapsed time</th><td id="rT"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Solution</th></tr>
+      <tr><th scope="row">Starting molar concentration c</th><td id="rC0"></td></tr>
+      <tr><th scope="row">Its osmotic pressure Π = cRT</th><td id="rPi0"></td></tr>
+      <tr><th scope="row">Height Π/ρg would support</th><td id="rH0"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Now</th></tr>
+      <tr><th scope="row">Water side level</th><td id="rH1"></td></tr>
+      <tr><th scope="row">Solution side level</th><td id="rH2"></td></tr>
+      <tr><th scope="row">Level difference Δh</th><td id="rDh"></td></tr>
+      <tr><th scope="row">c, water side / solution side</th><td id="rC"></td></tr>
+      <tr><th scope="row">Osmotic pressure difference</th><td id="rDPi"></td></tr>
+      <tr><th scope="row">Back pressure ρgΔh + piston</th><td id="rBack"></td></tr>
+      <tr><th scope="row">Net water flow</th><td id="rFlow"></td></tr>
+    </table>
+    <p class="note">Speeded up: 1 s on screen = 1 hour. Water at 25 °C (T = 298 K), ρ = 1000 kg/m³, R = 8.314 J/(mol·K), g = 9.81 m/s². Both arms start 0.50 m deep. Molecules are not drawn to scale; more solute dots means more solute molecules.</p>
+
+    <!-- Screen-reader announcements: only at events, never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  // ---- Physical constants and model ------------------------------------------
+  const R = 8.314, T = 298, RHO = 1000, g = 9.81;
+  const H0 = 0.5;          // starting depth of each arm (m)
+  const HC = 0.1;          // bottom channel volume, as an equivalent depth per side (m)
+  const ARM = 1.1;         // drawn arm height (m)
+  const SIM_PER_SEC = 3600;                // simulated seconds per real second
+  const LP = 1 / (2 * RHO * g * 5400);     // water permeability: back-pressure relaxation time 1.5 h
+  const PS = 0.6 / (2 * 5400);             // solute permeability (m/s) for a solute that fits the pores
+  const T_MAX = 24 * 3600;
+  const SOLUTES = {
+    suc: { name: 'sucrose', M: 342.3, d: 1.0, r: 6, ps: 1.0 },
+    dex: { name: 'dextran', M: 10000, d: 5.0, r: 9, ps: 0.4 },
+    alb: { name: 'albumin', M: 66500, d: 7.0, r: 12, ps: 0.25 },
+  };
+  const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const INK = '#1d2430';
+  const tubeCv = el('tube'), tctx = tubeCv.getContext('2d');
+  const grCv = el('graph'), gctx = grCv.getContext('2d');
+
+  const num = x => {
+    if (!isFinite(x)) return '—';
+    if (Math.abs(x) < 5e-4) return '0';
+    return Math.abs(x) >= 1000 ? Math.round(x).toString() : x.toPrecision(3);
+  };
+  const fixed = (x, d) => { const s = x.toFixed(d); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; };
+
+  // ---- State -------------------------------------------------------------------
+  let key, pct, pore, papp, sol, permeable, c0;
+  let t = 0, h1 = H0, h2 = H0, n1 = 0, n2 = 0;   // n = moles of solute per m² of tube cross-section
+  let running = false, done = false, doneReason = '', lastFrame = null;
+  let samples = [], nextSample = 0, hist = [];
+  let fs = 15;
+
+  function readSettings() {
+    key = el('solute').value; sol = SOLUTES[key]; pct = +el('pct').value;
+    pore = +el('membrane').value; papp = +el('papp').value * 1000;
+    permeable = sol.d < pore;
+    c0 = pct * 10000 / sol.M;                 // mol/m³ (mass % → kg/m³ → mol/m³; dilute, ρ ≈ 1000 kg/m³)
+  }
+  const conc = () => ({ c1: n1 / (h1 + HC), c2: n2 / (h2 + HC) });
+  const dPiEff = () => { const c = conc(); return permeable ? 0 : (c.c2 - c.c1) * R * T; };   // only solute that can't cross
+  const backP = () => RHO * g * (h2 - h1) + papp;
+  const flowRate = () => LP * (dPiEff() - backP());       // m/s of level change, + = water moves into the solution side
+
+  // Equilibrium level difference for comparison (solute that can't cross)
+  function equilibrium() {
+    if (permeable) return { dh: -papp / (RHO * g), limited: Math.abs(papp / (RHO * g)) > 2 * H0 };
+    const n = c0 * (H0 + HC);
+    const f = D => RHO * g * D + papp - n * R * T / (H0 + HC + D / 2);
+    let lo = -2 * H0, hi = 2 * H0;
+    if (f(hi) < 0) return { dh: hi, limited: true, side: 'water' };
+    if (f(lo) > 0) return { dh: lo, limited: true, side: 'solution' };
+    for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (f(mid) > 0) hi = mid; else lo = mid; }
+    return { dh: (lo + hi) / 2, limited: false };
+  }
+
+  // ---- Time stepping ----------------------------------------------------------------
+  function sample() {
+    const c = conc(), q = flowRate();
+    samples.push({ t: t / 3600, h1, h2, dh: h2 - h1, c1: c.c1, c2: c.c2, dpi: dPiEff(), back: backP(),
+                   flow: (done || Math.abs(q) < 2e-8) ? 'none' : q > 0 ? 'into solution' : 'out of solution' });
+  }
+  function advance(dtSim) {
+    let left = dtSim;
+    while (left > 1e-9 && !done) {
+      if (t + 1e-6 >= nextSample) { sample(); nextSample += 1800; }
+      const h = Math.min(left, 20, nextSample - t);
+      // water flow through the membrane
+      let q = flowRate() * h;
+      if (h1 - q < 0) q = h1;            // water side runs dry
+      if (h2 + q < 0) q = -h2;           // solution side runs dry
+      h1 -= q; h2 += q;
+      // solute diffusion through the membrane, if the pores are big enough
+      if (permeable) {
+        const c = conc(), dn = PS * sol.ps * (c.c2 - c.c1) * h;
+        const lim = (n2 - n1 * (h2 + HC) / (h1 + HC)) / (1 + (h2 + HC) / (h1 + HC));   // don't overshoot equal concentration
+        const move = Math.abs(dn) > Math.abs(lim) ? lim : dn;
+        n2 -= move; n1 += move;
+      }
+      t += h; left -= h;
+      if (t % 300 < h) hist.push([t / 3600, dPiEff() / 1000, backP() / 1000]);
+      if (h1 <= 1e-6) return finish('waterDry');
+      if (h2 <= 1e-6) return finish('solutionDry');
+      const c = conc();
+      if (Math.abs(flowRate()) < 2e-8 && (!permeable || Math.abs(c.c2 - c.c1) < 1e-2 * Math.max(c0, 1e-9)) && t > 600) return finish('equilibrium');
+      if (t >= T_MAX) return finish('time');
+    }
+  }
+  function finish(reason) {
+    done = true; doneReason = reason; running = false;
+    hist.push([t / 3600, dPiEff() / 1000, backP() / 1000]);
+    sample(); updateButtons(); refresh();
+    announce(endText());
+  }
+  function endText() {
+    const dh = h2 - h1;
+    switch (doneReason) {
+      case 'equilibrium':
+        if (permeable) return `Equilibrium after ${fixed(t / 3600, 1)} hours. The ${sol.name} passed through the membrane until both sides had the same concentration, ${num(conc().c1)} mol per cubic meter; there is no lasting osmosis.` + (papp > 0 ? ` The piston pushed the solution side ${num(-dh)} m lower.` : '');
+        if (dh >= 0) return `Equilibrium after ${fixed(t / 3600, 1)} hours: the solution side is ${num(dh)} m higher. Back pressure ${num(backP() / 1000)} kPa now balances the osmotic pressure difference.`;
+        return `Equilibrium after ${fixed(t / 3600, 1)} hours: the piston pushed water out of the solution (reverse osmosis); the water side is ${num(-dh)} m higher.`;
+      case 'waterDry': return `All the water moved into the solution after ${fixed(t / 3600, 1)} hours. The osmotic pressure is too large for the back pressure in this tube to balance.`;
+      case 'solutionDry': return `The piston pushed all the water out of the solution side after ${fixed(t / 3600, 1)} hours.`;
+      default: return `Time limit of 24 hours reached.`;
+    }
+  }
+
+  // ---- Molecules (for display) ------------------------------------------------------
+  // Geometry in canvas pixels
+  const G = { W: 900, y0: 488, ch: 72, aL: [150, 300], aR: [600, 750], xm: 450, ppm: 380 };
+  const NW = 220;
+  let waters = [], solutes = [];
+  function levelY(side) { return G.y0 - (side === 0 ? h1 : h2) * G.ppm; }
+  function inside(x, y, side, r) {
+    const lvl = levelY(side) + r;
+    const bot = G.y0 + G.ch - r;
+    if (side === 0) {
+      if (x < G.aL[0] + r || x > G.xm - r) return false;
+      if (y > bot) return false;
+      if (y >= G.y0 + r) return true;
+      return x <= G.aL[1] - r && y >= lvl;
+    } else {
+      if (x > G.aR[1] - r || x < G.xm + r) return false;
+      if (y > bot) return false;
+      if (y >= G.y0 + r) return true;
+      return x >= G.aR[0] + r && y >= lvl;
+    }
+  }
+  function randomSpot(side, r) {
+    for (let k = 0; k < 200; k++) {
+      const x = side === 0 ? G.aL[0] + Math.random() * (G.xm - G.aL[0]) : G.xm + Math.random() * (G.aR[1] - G.xm);
+      const y = levelY(side) + Math.random() * (G.y0 + G.ch - levelY(side));
+      if (inside(x, y, side, r)) return [x, y];
+    }
+    return [side === 0 ? G.xm - 30 : G.xm + 30, G.y0 + G.ch / 2];
+  }
+  function soluteDots() { return Math.round(4 * Math.sqrt(c0)); }   // more molecules → more dots (not to scale)
+  function makeParticles() {
+    waters = []; solutes = [];
+    for (let i = 0; i < NW; i++) {
+      const side = i < NW / 2 ? 0 : 1, [x, y] = randomSpot(side, 3.5);
+      waters.push({ x, y, vx: 0, vy: 0, side, r: 3.5 });
+    }
+    const ns = soluteDots();
+    for (let i = 0; i < ns; i++) {
+      const [x, y] = randomSpot(1, sol.r);
+      solutes.push({ x, y, vx: 0, vy: 0, side: 1, r: sol.r });
+    }
+  }
+  function targets() {
+    const v1 = h1 + HC, v2 = h2 + HC;
+    const wL = Math.round(NW * v1 / (v1 + v2));
+    const sL = n1 + n2 > 0 ? Math.round(solutes.length * n1 / (n1 + n2)) : 0;
+    return { wL, sL };
+  }
+  function moveParticles(dtReal) {
+    const tg = targets();
+    const counts = list => list.reduce((a, p) => a + (p.side === 0 ? 1 : 0), 0);
+    let wL = counts(waters), sL = counts(solutes);
+    const stepList = (list, isWater) => {
+      for (const p of list) {
+        const sp = isWater ? 140 : 70 / Math.sqrt(p.r / 6);
+        p.vx += (Math.random() - 0.5) * sp * 0.6; p.vy += (Math.random() - 0.5) * sp * 0.6;
+        const v = Math.hypot(p.vx, p.vy); if (v > sp) { p.vx *= sp / v; p.vy *= sp / v; }
+        let nx = p.x + p.vx * dtReal, ny = p.y + p.vy * dtReal;
+        // crossing the membrane?
+        const crosses = (p.side === 0 && nx > G.xm - p.r) || (p.side === 1 && nx < G.xm + p.r);
+        if (crosses && ny > G.y0 + p.r && ny < G.y0 + G.ch - p.r) {
+          const canPass = isWater || permeable;
+          let allow = false;
+          if (canPass) {
+            const L = isWater ? wL : sL, tgt = isWater ? tg.wL : tg.sL;
+            if (p.side === 0 && L > tgt) allow = true;
+            else if (p.side === 1 && L < tgt) allow = true;
+            else allow = Math.random() < 0.25 && Math.abs(L - tgt) < 2;   // random crossings in both directions
+          }
+          if (allow) {
+            const ns = 1 - p.side;
+            const x2 = ns === 1 ? G.xm + p.r + 1 : G.xm - p.r - 1;
+            if (inside(x2, ny, ns, p.r)) {
+              if (isWater) wL += p.side === 0 ? -1 : 1; else sL += p.side === 0 ? -1 : 1;
+              p.side = ns; p.x = x2 + (ns === 1 ? 2 : -2); p.y = ny; continue;
+            }
+          }
+          p.vx = -p.vx; continue;
+        }
+        if (inside(nx, ny, p.side, p.r)) { p.x = nx; p.y = ny; }
+        else if (inside(p.x, ny, p.side, p.r)) { p.y = ny; p.vx = -p.vx; }
+        else if (inside(nx, p.y, p.side, p.r)) { p.x = nx; p.vy = -p.vy; }
+        else { p.vx = -p.vx; p.vy = -p.vy; }
+        if (!inside(p.x, p.y, p.side, p.r)) { const [x, y] = randomSpot(p.side, p.r); p.x = x; p.y = y; }
+      }
+    };
+    stepList(waters, true); stepList(solutes, false);
+    // if the display falls far behind the model (fast flow), move the nearest surplus molecules across
+    const fix = (list, L, tgt) => {
+      let diff = L - tgt;
+      while (Math.abs(diff) > 4) {
+        const from = diff > 0 ? 0 : 1, to = 1 - from;
+        let best = null, bd = 1e9;
+        for (const p of list) if (p.side === from) { const d = Math.abs(p.x - G.xm) + Math.abs(p.y - (G.y0 + G.ch / 2)); if (d < bd) { bd = d; best = p; } }
+        if (!best) break;
+        const [x, y] = randomSpot(to, best.r); best.side = to;
+        // drop it just past the membrane when possible, so the motion reads as crossing
+        const x2 = to === 1 ? G.xm + best.r + 3 + Math.random() * 30 : G.xm - best.r - 3 - Math.random() * 30;
+        const y2 = G.y0 + best.r + Math.random() * (G.ch - 2 * best.r);
+        if (inside(x2, y2, to, best.r)) { best.x = x2; best.y = y2; } else { best.x = x; best.y = y; }
+        diff += diff > 0 ? -1 : 1;
+      }
+    };
+    fix(waters, wL, tg.wL);
+    if (permeable) fix(solutes, sL, tg.sL);
+  }
+
+  // ---- Drawing: U-tube ----------------------------------------------------------------
+  function scaleFont(cv) { return Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width)))); }
+  function label(ctx, cv, text, x, y, align = 'center', weight = 600) {
+    ctx.save(); ctx.font = weight + ' ' + fs + 'px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(text).width;
+    let x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    x0 = Math.max(4, Math.min(cv.width - w - 4, x0));
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.lineJoin = 'round'; ctx.fillStyle = INK;
+    ctx.strokeText(text, x0, y); ctx.fillText(text, x0, y); ctx.restore();
+  }
+  function drawTube() {
+    const ctx = tctx, W = tubeCv.width, H = tubeCv.height;
+    fs = scaleFont(tubeCv);
+    ctx.clearRect(0, 0, W, H);
+    const { y0, ch, aL, aR, xm, ppm } = G, yTop = y0 - ARM * ppm, yL = levelY(0), yR = levelY(1);
+    // liquid
+    ctx.fillStyle = css('--liquid');
+    ctx.fillRect(aL[0], yL, aL[1] - aL[0], y0 - yL);
+    ctx.fillRect(aR[0], yR, aR[1] - aR[0], y0 - yR);
+    ctx.fillRect(aL[0], y0, aR[1] - aL[0], ch);
+    // height scale on the left
+    ctx.font = Math.round(fs * 0.85) + 'px system-ui, sans-serif'; ctx.fillStyle = '#5b6575'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let k = 0; k <= 11; k++) {
+      const y = y0 - k * 0.1 * ppm;
+      ctx.strokeStyle = k % 5 === 0 ? css('--axis') : '#c6ccd4'; ctx.lineWidth = k % 5 === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(aL[0] - 14, y); ctx.lineTo(aL[0] - 4, y); ctx.stroke();
+      if (k % 2 === 0) ctx.fillText(fixed(k * 0.1, 1), aL[0] - 18, y);
+    }
+    ctx.save(); ctx.translate(fs * 1.1, y0 - 0.55 * ppm); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
+    ctx.fillText('Height above the channel (m)', 0, 0); ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    // tube walls
+    ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(aL[0], yTop); ctx.lineTo(aL[0], y0 + ch); ctx.lineTo(aR[1], y0 + ch); ctx.lineTo(aR[1], yTop);
+    ctx.moveTo(aL[1], yTop); ctx.lineTo(aL[1], y0); ctx.lineTo(aR[0], y0); ctx.lineTo(aR[0], yTop);
+    ctx.stroke();
+    // liquid surfaces
+    ctx.strokeStyle = css('--water'); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(aL[0], yL); ctx.lineTo(aL[1], yL); ctx.moveTo(aR[0], yR); ctx.lineTo(aR[1], yR); ctx.stroke();
+    // membrane with pores (gap size grows with pore size)
+    const gap = pore < 1 ? 3 : pore < 2 ? 7 : 14, seg = 9;
+    ctx.strokeStyle = css('--axis'); ctx.lineWidth = 5;
+    for (let y = y0 + 2; y < y0 + ch - 1; y += seg + gap) { ctx.beginPath(); ctx.moveTo(xm, y); ctx.lineTo(xm, Math.min(y + seg, y0 + ch - 1)); ctx.stroke(); }
+    // molecules
+    ctx.fillStyle = css('--water');
+    for (const p of waters) { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const p of solutes) {
+      ctx.fillStyle = css('--solute'); ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, p.r * 0.3), 0, Math.PI * 2); ctx.fill();
+    }
+    // piston on the solution side
+    if (papp > 0) {
+      const pt = yR - 22;
+      ctx.fillStyle = '#b8c0cb'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      ctx.fillRect(aR[0] + 3, pt, aR[1] - aR[0] - 6, 20); ctx.strokeRect(aR[0] + 3, pt, aR[1] - aR[0] - 6, 20);
+      ctx.fillRect((aR[0] + aR[1]) / 2 - 5, pt - 70, 10, 70); ctx.strokeRect((aR[0] + aR[1]) / 2 - 5, pt - 70, 10, 70);
+      label(ctx, tubeCv, 'Piston ' + num(papp / 1000) + ' kPa', (aR[0] + aR[1]) / 2, pt - 84);
+    }
+    // labels
+    label(ctx, tubeCv, 'Pure water', (aL[0] + aL[1]) / 2, yTop - fs * 1.1);
+    label(ctx, tubeCv, pct > 0 ? `${fixed(pct, 1)}% ${sol.name}` : 'Water (0%)', (aR[0] + aR[1]) / 2, yTop - fs * 1.1);
+    label(ctx, tubeCv, 'Membrane', xm, y0 + ch + fs * 1.3);
+    // level difference marker
+    const dh = h2 - h1;
+    if (Math.abs(dh) > 0.005) {
+      const x = aR[0] - 50, yA = Math.min(yL, yR), yB = Math.max(yL, yR);
+      ctx.setLineDash([5, 4]); ctx.strokeStyle = css('--axis'); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(aL[1], yL); ctx.lineTo(x + 10, yL); ctx.moveTo(aR[0], yR); ctx.lineTo(x - 10, yR); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, yA); ctx.lineTo(x, yB);
+      ctx.moveTo(x - 6, yA + 8); ctx.lineTo(x, yA); ctx.lineTo(x + 6, yA + 8);
+      ctx.moveTo(x - 6, yB - 8); ctx.lineTo(x, yB); ctx.lineTo(x + 6, yB - 8); ctx.stroke();
+      label(ctx, tubeCv, 'Δh = ' + num(Math.abs(dh)) + ' m', x - 12, (yA + yB) / 2, 'right');
+    }
+    // net flow arrow at the membrane
+    const q = flowRate();
+    if (!done && Math.abs(q) > 2e-8 && h1 > 1e-6 && h2 > 1e-6) {
+      const dir = q > 0 ? 1 : -1, yA = y0 - 40;
+      ctx.fillStyle = INK; ctx.strokeStyle = INK; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(xm - dir * 50, yA); ctx.lineTo(xm + dir * 40, yA); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xm + dir * 54, yA); ctx.lineTo(xm + dir * 38, yA - 9); ctx.lineTo(xm + dir * 38, yA + 9); ctx.closePath(); ctx.fill();
+      label(ctx, tubeCv, 'net water flow', xm, yA - fs * 1.2);
+    }
+  }
+
+  // ---- Drawing: graph ---------------------------------------------------------------------
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+    return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * mag;
+  }
+  function drawGraph() {
+    const ctx = gctx, W = grCv.width, H = grCv.height;
+    fs = scaleFont(grCv);
+    ctx.clearRect(0, 0, W, H);
+    const padL = fs * 4.4, padR = 24, padT = 20, padB = fs * 3.2, w = W - padL - padR, h = H - padT - padB;
+    const tMax = Math.max(4, Math.ceil(t / 3600 * 1.15));
+    let pMax = 1, pMin = 0;
+    for (const p of hist) { pMax = Math.max(pMax, p[1], p[2]); pMin = Math.min(pMin, p[1], p[2]); }
+    pMax = Math.max(pMax, dPiEff() / 1000, backP() / 1000) * 1.12; pMin = Math.min(pMin, backP() / 1000) * 1.12;
+    const X = x => padL + x / tMax * w, Y = y => padT + (pMax - y) / (pMax - pMin) * h;
+    ctx.font = fs + 'px system-ui, sans-serif'; ctx.fillStyle = '#5b6575';
+    const xs = niceStep(tMax, 6), ys = niceStep(pMax - pMin, 6);
+    ctx.textAlign = 'center';
+    for (let x = 0; x <= tMax + 1e-9; x += xs) {
+      ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X(x), padT); ctx.lineTo(X(x), padT + h); ctx.stroke();
+      ctx.fillText(+x.toFixed(6), X(x), padT + h + fs * 1.3);
+    }
+    ctx.textAlign = 'right';
+    for (let y = Math.ceil(pMin / ys) * ys; y <= pMax + 1e-9; y += ys) {
+      ctx.strokeStyle = Math.abs(y) < 1e-9 ? css('--axis') : '#e6e9ee'; ctx.lineWidth = Math.abs(y) < 1e-9 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(padL, Y(y)); ctx.lineTo(padL + w, Y(y)); ctx.stroke();
+      ctx.fillText(+y.toFixed(6), padL - 8, Y(y) + fs * 0.35);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillText('Time (h)', padL + w / 2, H - fs * 0.5);
+    ctx.save(); ctx.translate(fs, padT + h / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('Pressure (kPa)', 0, 0); ctx.restore();
+    ctx.strokeStyle = css('--axis'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + h); ctx.stroke();
+    const pts = hist.concat([[t / 3600, dPiEff() / 1000, backP() / 1000]]);
+    const line = (i, color, dash, width) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.beginPath();
+      pts.forEach((p, k) => k ? ctx.lineTo(X(p[0]), Y(p[i])) : ctx.moveTo(X(p[0]), Y(p[i])));
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    line(1, css('--water'), [], 3.5);
+    line(2, css('--back'), [10, 6], 3.5);
+    // end labels
+    const last = pts[pts.length - 1];
+    const ya = Y(last[1]), yb = Y(last[2]);
+    const sep = Math.abs(ya - yb) < fs * 1.4 ? fs * 0.8 : 0;
+    const lx = Math.min(X(last[0]) + 10, W - 180);
+    ctx.textAlign = 'left'; ctx.font = '600 ' + fs + 'px system-ui, sans-serif'; ctx.fillStyle = INK;
+    const lab = (txt, y) => { ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.strokeText(txt, lx, y); ctx.fillText(txt, lx, y); };
+    lab('osmotic', ya - (ya <= yb ? sep : -sep) - 4);
+    lab('back', yb + (ya <= yb ? sep : -sep) + fs * 0.9);
+  }
+
+  // ---- Readouts and text alternatives ------------------------------------------------------
+  function verdictText() {
+    if (pct === 0) return 'No solute: both sides are pure water, so nothing happens.';
+    if (permeable) return `The ${fixed(pore, 1)} nm pores let ${sol.name} (about ${sol.d.toFixed(0)} nm) through. Solute spreads to both sides; there is no lasting osmosis.`;
+    return `The ${fixed(pore, 1)} nm pores block ${sol.name} (about ${sol.d.toFixed(0)} nm) but pass water (0.3 nm). Water moves toward the solution.`;
+  }
+  function readouts() {
+    const c = conc(), q = flowRate(), Pi0 = c0 * R * T;
+    el('rT').textContent = fixed(t / 3600, 2) + ' h';
+    el('rC0').textContent = num(c0) + ' mol/m³';
+    el('rPi0').textContent = `${num(Pi0 / 1000)} kPa (${num(Pi0 / 101325)} atm)`;
+    el('rH0').textContent = num(Pi0 / (RHO * g)) + ' m';
+    el('rH1').textContent = num(h1) + ' m';
+    el('rH2').textContent = num(h2) + ' m';
+    el('rDh').textContent = (h2 - h1 >= 0 ? 'solution ' : 'water ') + num(Math.abs(h2 - h1)) + ' m higher';
+    if (Math.abs(h2 - h1) < 5e-4) el('rDh').textContent = '0 m';
+    el('rC').textContent = `${num(c.c1)} / ${num(c.c2)} mol/m³`;
+    el('rDPi').textContent = num(dPiEff() / 1000) + ' kPa' + (permeable ? ' (solute crosses)' : '');
+    el('rBack').textContent = num(backP() / 1000) + ' kPa';
+    el('rFlow').textContent = done || Math.abs(q) < 2e-8 ? 'none' : (q > 0 ? 'into the solution' : 'out of the solution');
+    el('verdict').textContent = verdictText();
+  }
+  function setupText() {
+    return `${fixed(pct, 1)}% ${sol.name} solution (molar concentration ${num(c0)} mol/m³, osmotic pressure ${num(c0 * R * T / 1000)} kPa) on the right, pure water on the left, ${fixed(pore, 1)} nm membrane pores` + (papp > 0 ? `, piston pressing ${num(papp / 1000)} kPa on the solution.` : '.');
+  }
+  function describe() {
+    const c = conc(), q = flowRate(), dh = h2 - h1;
+    let s = `${setupText()} ${verdictText()} After ${fixed(t / 3600, 2)} h: water side ${num(h1)} m deep, solution side ${num(h2)} m deep`;
+    s += Math.abs(dh) < 5e-4 ? ', level.' : `, so the ${dh > 0 ? 'solution' : 'water'} side is ${num(Math.abs(dh))} m higher.`;
+    if (permeable) s += ` Solute concentration: ${num(c.c1)} mol/m³ on the water side, ${num(c.c2)} on the solution side.`;
+    s += done ? ' ' + endText() : (Math.abs(q) < 2e-8 ? ' No net water flow.' : ` Net water flow is ${q > 0 ? 'into' : 'out of'} the solution.`);
+    el('tubeDesc').textContent = s;
+    const eq = equilibrium();
+    let gtx = `Osmotic pressure difference (solid) and back pressure ρgΔh plus piston (dashed), in kPa, over ${fixed(t / 3600, 1)} hours. `;
+    gtx += `Now: osmotic ${num(dPiEff() / 1000)} kPa, back ${num(backP() / 1000)} kPa. `;
+    if (permeable) gtx += 'Because the solute crosses the membrane, the osmotic pressure difference stays at zero.';
+    else if (eq.limited && eq.side === 'water') gtx += 'The back pressure can never rise high enough to match the osmotic pressure in this tube, so water keeps flowing until the water side is empty.';
+    else gtx += `Water flows while osmotic pressure is greater than back pressure; the lines meet at equilibrium, Δh = ${num(eq.dh)} m (predicted).`;
+    el('graphDesc').textContent = gtx;
+  }
+  function renderData() {
+    el('dataBody').innerHTML = samples.map(r =>
+      `<tr><td>${fixed(r.t, 1)}</td><td>${num(r.h1)}</td><td>${num(r.h2)}</td><td>${num(r.dh)}</td><td>${num(r.c1)}</td><td>${num(r.c2)}</td>` +
+      `<td>${num(r.dpi / 1000)}</td><td>${num(r.back / 1000)}</td><td>${r.flow}</td></tr>`).join('');
+    el('dataCaption').textContent = setupText() + (done ? ' The last row is the end of the run.' : '');
+    const any = samples.length > 0;
+    el('dataTable').hidden = !any; el('dataEmpty').hidden = any; el('csv').disabled = !any;
+  }
+  function announce(msg) {
+    el('status').textContent = '';
+    setTimeout(() => {
+      el('status').textContent = msg.replace(/mol\/m³/g, 'moles per cubic meter').replace(/kPa/g, 'kilopascals')
+        .replace(/(\d) m\b/g, '$1 meters').replace(/(\d) h\b/g, '$1 hours').replace(/ nm\b/g, ' nanometer').replace(/Δh/g, 'height difference');
+    }, 50);
+  }
+  function refresh() { drawTube(); drawGraph(); readouts(); describe(); renderData(); }
+
+  // ---- Run control -------------------------------------------------------------------------
+  function updateButtons() {
+    el('play').textContent = running ? 'Pause' : (done ? 'Run again' : (t > 0 ? 'Resume' : 'Play'));
+    el('step').disabled = done;
+  }
+  function newRun() {
+    readSettings();
+    t = 0; h1 = H0; h2 = H0; n1 = 0; n2 = c0 * (H0 + HC);
+    running = false; done = false; doneReason = ''; samples = []; nextSample = 0; hist = [[0, dPiEff() / 1000, backP() / 1000]];
+    makeParticles(); updateButtons(); refresh();
+  }
+  let lastText = 0;
+  function frame(now) {
+    if (lastFrame !== null) {
+      const dt = Math.min(0.05, (now - lastFrame) / 1000);
+      if (running) advance(dt * SIM_PER_SEC);
+      moveParticles(dt);
+    }
+    lastFrame = now;
+    drawTube();
+    if (running) { drawGraph(); readouts(); if (now - lastText > 2000) { describe(); lastText = now; } }
+    requestAnimationFrame(frame);    // molecules keep jiggling even when paused
+  }
+
+  function syncLabels() {
+    const p = (+el('pct').value).toFixed(1), pa = (+el('papp').value).toFixed(1);
+    el('pctOut').textContent = p + '%'; el('pappOut').textContent = pa + ' kPa';
+    el('pct').setAttribute('aria-valuetext', p + ' percent by mass');
+    el('papp').setAttribute('aria-valuetext', pa + ' kilopascals');
+  }
+  ['pct', 'papp'].forEach(id => el(id).addEventListener('input', () => { syncLabels(); newRun(); }));
+  ['solute', 'membrane'].forEach(id => el(id).addEventListener('change', () => { newRun(); announce(verdictText()); }));
+  el('play').addEventListener('click', () => {
+    if (running) { running = false; updateButtons(); refresh(); announce(`Paused at ${fixed(t / 3600, 1)} h. Level difference ${num(Math.abs(h2 - h1))} m, ${h2 >= h1 ? 'solution' : 'water'} side higher.`); return; }
+    if (done) newRun();
+    running = true; updateButtons();
+    announce((t > 0 ? 'Resumed. ' : 'Playing. ') + setupText() + ' ' + verdictText());
+  });
+  el('step').addEventListener('click', () => {
+    running = false; advance(360); updateButtons(); refresh();
+    if (!done) announce(`${fixed(t / 3600, 1)} h. Level difference ${num(Math.abs(h2 - h1))} m, ${h2 >= h1 ? 'solution' : 'water'} side higher.`);
+  });
+  el('reset').addEventListener('click', () => { newRun(); announce('Reset. Both arms are 0.50 m deep. ' + setupText()); });
+  el('csv').addEventListener('click', () => {
+    const meta = `# ${pct}% ${sol.name} (M = ${sol.M} g/mol); pores ${pore} nm; piston ${papp / 1000} kPa; T = 298 K; rho = 1000 kg/m^3; g = 9.81 m/s^2`;
+    const head = 't (h),water level (m),solution level (m),dh (m),c water side (mol/m^3),c solution side (mol/m^3),osmotic pressure difference (Pa),back pressure (Pa),net water flow';
+    const lines = samples.map(r => [r.t.toFixed(2), r.h1.toFixed(4), r.h2.toFixed(4), r.dh.toFixed(4), r.c1.toFixed(4), r.c2.toFixed(4), r.dpi.toFixed(1), r.back.toFixed(1), r.flow].join(','));
+    const blob = new Blob([meta + '\n' + head + '\n' + lines.join('\n') + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `osmosis_${sol.name}_${pct}pct_${pore}nm.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  window.addEventListener('resize', refresh);
+
+  syncLabels(); newRun();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
