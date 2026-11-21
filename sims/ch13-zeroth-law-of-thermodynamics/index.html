@@ -89,7 +89,7 @@
     <section class="panel" aria-labelledby="sceneHeading">
       <h2 id="sceneHeading">Two potatoes and a thermometer</h2>
       <canvas id="scene" width="1000" height="660" role="img"
-              aria-label="Two potatoes with jiggling molecules, shown apart or touching, and a thermometer that can be placed in either potato. A text summary follows."></canvas>
+              aria-label="Two potatoes with jiggling molecules, shown apart or touching, and a digital thermometer whose wired probe can be placed in either potato. A text summary follows."></canvas>
       <ul class="legend" aria-label="Key for the picture">
         <li><svg width="44" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="#0b4f9c"/><circle cx="22" cy="6" r="4.5" fill="#18733a"/><circle cx="38" cy="6" r="4.5" fill="#b5231b"/></svg>Molecule color shows relative energy: blue lower, green at equilibrium, red higher. Faster jiggling also means higher energy (speeds exaggerated).</li>
         <li><svg width="22" height="14" aria-hidden="true"><path d="M2 2 L20 7 L2 12 Z" fill="#A66C00" stroke="#1d2430" stroke-width="1"/></svg>Energy packet: heat flowing from the hotter potato to the colder one</li>
@@ -170,9 +170,9 @@
 
     <fieldset class="radios">
       <legend>Thermometer</legend>
-      <label><input type="radio" name="thermo" value="air" checked> In the air (not touching anything)</label>
-      <label><input type="radio" name="thermo" value="A"> In potato A</label>
-      <label><input type="radio" name="thermo" value="B"> In potato B</label>
+      <label><input type="radio" name="thermo" value="air" checked> Probe in the air (not touching anything)</label>
+      <label><input type="radio" name="thermo" value="A"> Probe in potato A</label>
+      <label><input type="radio" name="thermo" value="B"> Probe in potato B</label>
       <button id="thReset" type="button" style="margin-top:6px">Reset thermometer to 20 °C</button>
     </fieldset>
 
@@ -372,32 +372,47 @@
     text(ctx, sc, `${f1(T)} °C`, x, y + r + fs * 2.3, 'center', 700);
   }
   function drawThermometer(ctx, L) {
-    // position: bulb in the chosen potato, or standing in the air at the top center
-    let bx, by;
-    if (where === 'A') { bx = L.xA - L.rA * 0.35; by = L.cy - L.rA * 0.25; }
-    else if (where === 'B') { bx = L.xB + L.rB * 0.35; by = L.cy - L.rB * 0.25; }
-    else { bx = (L.xA + L.rA * 1.25 + L.xB - L.rB * 1.25) / 2; by = L.cy - Math.max(L.rA, L.rB) - 12; }   // in the air: above the gap
-    const len = Math.min(185, by - fs * 2.2), w = 16, top = by - len;
-    // glass tube
-    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - w / 2, top, w, len, 8) : ctx.rect(bx - w / 2, top, w, len); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(bx, by + 6, 15, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
-    // liquid column: 0 °C at 20 px above the bulb, 100 °C near the top
-    const y0 = by - 16, y100 = top + 14, frac = Math.max(0, Math.min(1.04, Tth / 100));
-    ctx.fillStyle = INK; ctx.fillRect(bx - 3.5, y0 - frac * (y0 - y100), 7, frac * (y0 - y100) + 10);
-    // scale
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.font = Math.round(fs * 0.75) + 'px system-ui, sans-serif';
-    ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    for (let k = 0; k <= 100; k += 10) {
-      const y = y0 - k / 100 * (y0 - y100);
-      ctx.beginPath(); ctx.moveTo(bx + w / 2, y); ctx.lineTo(bx + w / 2 + (k % 50 === 0 ? 12 : 6), y); ctx.stroke();
-      if (k % 50 === 0) ctx.fillText(String(k), bx + w / 2 + 15, y);
-    }
+    // Digital thermometer: display box at the top, a cable, and a probe.
+    const bw = Math.max(250, fs * 12), bh = Math.max(92, fs * 3.9), bx0 = L.W / 2 - bw / 2, by0 = 14;   // grows with the text on small screens
+    // probe position: tip in the chosen potato, or resting beside the display
+    let tipX, tipY, ang;                       // ang: direction from tip toward the handle
+    const rod = 115;
+    if (where === 'A') { tipX = L.xA + L.rA * 0.15; tipY = L.cy - L.rA * 0.15; ang = -Math.PI / 3; }
+    else if (where === 'B') { tipX = L.xB - L.rB * 0.15; tipY = L.cy - L.rB * 0.15; ang = -2 * Math.PI / 3; }
+    else { tipX = bx0 + bw + 40 + rod + 30; tipY = by0 + bh / 2; ang = Math.PI; }
+    const hx = tipX + Math.cos(ang) * rod, hy = tipY + Math.sin(ang) * rod;          // rod meets handle
+    const hEndX = hx + Math.cos(ang) * 34, hEndY = hy + Math.sin(ang) * 34;          // far end of the handle
+    // cable from the bottom (or side) of the display to the handle
+    const cx0 = where === 'air' ? bx0 + bw : L.W / 2, cy0 = where === 'air' ? by0 + bh / 2 : by0 + bh;
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx0, cy0);
+    if (where === 'air') ctx.bezierCurveTo(cx0 + 20, cy0 + 30, hEndX - 20, hEndY + 30, hEndX, hEndY);
+    else ctx.bezierCurveTo(cx0, cy0 + 60, hEndX + Math.cos(ang) * 60, hEndY + Math.sin(ang) * 60, hEndX, hEndY);
+    ctx.stroke();
+    // metal rod (outlined so it shows on both the potato and the background)
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = '#c9ced6'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(hx, hy); ctx.stroke();
+    // handle
+    ctx.strokeStyle = INK; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hEndX, hEndY); ctx.stroke();
+    ctx.strokeStyle = '#6B7480'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hEndX, hEndY); ctx.stroke();
+    ctx.lineCap = 'butt';
+    // display box
+    ctx.fillStyle = '#eef2f6'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx0, by0, bw, bh, 12) : ctx.rect(bx0, by0, bw, bh); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.lineWidth = 2;
+    const scrTop = by0 + fs * 1.6, scrH = bh - fs * 1.6 - 10;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx0 + 12, scrTop, bw - 24, scrH, 6) : ctx.rect(bx0 + 12, scrTop, bw - 24, scrH); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '600 ' + Math.round(fs * 0.75) + 'px system-ui, sans-serif';
+    ctx.fillText(thSettled() ? 'Digital thermometer · settled' : 'Digital thermometer', L.W / 2, by0 + fs * 0.85);
+    ctx.font = '700 ' + Math.round(Math.min(scrH * 0.72, fs * 1.6)) + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+    ctx.fillText(f1(Tth) + ' °C', L.W / 2, scrTop + scrH / 2 + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    // reading box
-    const settled = thSettled();
-    text(ctx, sc, `Thermometer ${f1(Tth)} °C${settled ? ' (settled)' : ''}`, bx, top - fs * 0.9, 'center', 700);
+    // where the probe is
+    if (where === 'air') text(ctx, sc, 'Probe in the air', tipX - rod / 2, tipY + fs * 1.4, 'center', 600, Math.round(fs * 0.85));
   }
+
   function drawScene() {
     const ctx = sctx; fs = scaleFont(sc);
     const L = layout();
@@ -495,14 +510,14 @@
     el('verdict').textContent = verdictText();
     el('zeroth').textContent = zerothText();
   }
-  const whereText = () => where === 'air' ? 'in the air, touching nothing' : `in potato ${where}`;
+  const whereText = () => where === 'air' ? 'resting in the air, touching nothing' : `in potato ${where}`;
   function describe() {
     const P = powerAB();
     let s = `Potato A (${mA.toFixed(2)} kg) is at ${f1(TA)} °C and potato B (${mB.toFixed(2)} kg) is at ${f1(TB)} °C after ${f1(t / 60)} min. `;
     s += touching ? (Math.abs(TA - TB) < SETTLE ? 'They are touching and in thermal equilibrium; no net heat flows. ' : `They are touching; heat flows from ${P > 0 ? 'A to B' : 'B to A'} at ${Math.abs(P).toFixed(1)} W, so the molecules in the hotter potato slow down and those in the colder potato speed up. `) : 'They are not touching. ';
     s += `The molecules in A jiggle ${TA > TB + SETTLE ? 'faster than' : TA < TB - SETTLE ? 'slower than' : 'as fast as'} those in B; A's molecules are colored ${colorWord(TA)} and B's ${colorWord(TB)}. `;
     const tgt = thermoTarget();
-    s += `The thermometer is ${whereText()} and reads ${f1(Tth)} °C` + (tgt !== null ? (thSettled() ? ', settled (in equilibrium with the potato).' : ', still changing.') : '.');
+    s += `The digital thermometer's probe is ${whereText()}; the display reads ${f1(Tth)} °C` + (tgt !== null ? (thSettled() ? ', settled (in equilibrium with the potato).' : ', still changing.') : '.');
     el('sceneDesc').textContent = s;
     let gtx = `Temperatures from 0 to 100 °C over ${f1(t / 60)} minutes. Now: A ${f1(TA)} °C, B ${f1(TB)} °C, thermometer ${f1(Tth)} °C. `;
     if (hist.length < 2) gtx += 'Press Play to start the graph.';
