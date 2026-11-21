@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zeroth Law of Thermodynamics</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd;
+    /* Graphic colors: each is at least 3:1 against the plot background (WCAG 1.4.11) */
+    --a: #0072B2;               /* blue        – potato A line, accents   5.05:1 */
+    --b: #D55E00;               /* vermillion  – potato B line            3.76:1 */
+    --th: #1d2430;              /* ink         – thermometer line         15:1   */
+    --energy: #A66C00;          /* dark orange – energy packets           4.29:1 */
+    --axis: #6B7480;            /*             – axes, outlines           4.61:1 */
+    --potato: #e8cf9c;          /* potato fill (decorative; outlined in ink) */
+    /* Molecule colors (relative energy), each ≥ 3.9:1 against the potato fill, blends included:
+       blue #0b4f9c lower energy · green #18733a equilibrium · red #b5231b higher energy */
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--a); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 20px;
+            max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .views { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 12px; }
+  .ctrl .lab { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--a); }
+  input[type=range] { width: 100%; accent-color: var(--a); }
+  select { font: inherit; padding: 4px 6px; width: 100%; margin-top: 2px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #b8c0cb;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--a); border-color: var(--a); color: #fff; }
+  button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(a, button, input, select, summary, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 12px; }
+  legend { font-weight: 700; font-size: .95rem; padding: 0 4px; }
+  .radios label { display: block; margin: 4px 0; font-size: .95rem; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 4px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: .95rem; vertical-align: top; }
+  table.readouts th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  table.readouts th.group { font-weight: 700; padding-top: 10px; border-top: 2px solid var(--line); }
+  .verdict { margin: 4px 0 12px; padding: 8px 10px; border-radius: 8px; border: 2px solid var(--line); font-weight: 600; font-size: .95rem; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin: 8px 0 0;
+            list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  table.data { margin-top: 8px; width: 100%; }
+  table.data th, table.data td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data th { font-size: .9rem; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+  .two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 1150px) { .two { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Zeroth Law of Thermodynamics</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 13.1</span>
+</header>
+
+<main class="layout">
+  <div class="views">
+    <section class="panel" aria-labelledby="sceneHeading">
+      <h2 id="sceneHeading">Two potatoes and a thermometer</h2>
+      <canvas id="scene" width="1000" height="660" role="img"
+              aria-label="Two potatoes with jiggling molecules, shown apart or touching, and a thermometer that can be placed in either potato. A text summary follows."></canvas>
+      <ul class="legend" aria-label="Key for the picture">
+        <li><svg width="44" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="#0b4f9c"/><circle cx="22" cy="6" r="4.5" fill="#18733a"/><circle cx="38" cy="6" r="4.5" fill="#b5231b"/></svg>Molecule color shows relative energy: blue lower, green at equilibrium, red higher. Faster jiggling also means higher energy (speeds exaggerated).</li>
+        <li><svg width="22" height="14" aria-hidden="true"><path d="M2 2 L20 7 L2 12 Z" fill="#A66C00" stroke="#1d2430" stroke-width="1"/></svg>Energy packet: heat flowing from the hotter potato to the colder one</li>
+      </ul>
+      <p class="summary"><strong>Picture summary:</strong> <span id="sceneDesc"></span></p>
+    </section>
+
+    <div class="two">
+      <section class="panel" aria-labelledby="graphHeading">
+        <h2 id="graphHeading">Temperature over time</h2>
+        <canvas id="graph" width="800" height="500" role="img"
+                aria-label="Graph of the temperatures of potato A, potato B and the thermometer versus time. A text summary follows, and the data is in the table below it."></canvas>
+        <ul class="legend" aria-label="Key for the graph">
+          <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#0072B2" stroke-width="3"/></svg>Potato A (solid)</li>
+          <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#D55E00" stroke-width="3" stroke-dasharray="8 4"/></svg>Potato B (dashed)</li>
+          <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#1d2430" stroke-width="2.5" stroke-dasharray="2 4"/></svg>Thermometer (dotted)</li>
+        </ul>
+        <p class="summary"><strong>Graph summary:</strong> <span id="graphDesc"></span></p>
+        <details>
+          <summary>Temperature data table (every 0.5 min)</summary>
+          <p id="dataEmpty" class="note">Press Play; the table fills in as time passes.</p>
+          <div class="tablewrap" tabindex="0" role="region" aria-label="Temperature data, scrollable">
+            <table class="data" id="dataTable" hidden>
+              <caption>Temperatures, contact and thermometer position over time</caption>
+              <thead><tr><th scope="col">t (min)</th><th scope="col">Potato A (°C)</th><th scope="col">Potato B (°C)</th><th scope="col">Thermometer (°C)</th><th scope="col">Potatoes touching</th><th scope="col">Thermometer in</th></tr></thead>
+              <tbody id="dataBody"></tbody>
+            </table>
+          </div>
+          <p><button id="csv" type="button" disabled>Download temperature data as CSV</button></p>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="readHeading">
+        <h2 id="readHeading">Thermometer readings</h2>
+        <p class="note" style="margin-top:0">A reading is recorded each time the thermometer settles in a potato (reaches thermal equilibrium with it).</p>
+        <div class="tablewrap" tabindex="0" role="region" aria-label="Thermometer readings, scrollable">
+          <table class="data" id="readTable" hidden>
+            <caption>Settled thermometer readings</caption>
+            <thead><tr><th scope="col">#</th><th scope="col">t (min)</th><th scope="col">In</th><th scope="col">Reading (°C)</th><th scope="col">Potatoes touching</th></tr></thead>
+            <tbody id="readBody"></tbody>
+          </table>
+        </div>
+        <p id="readEmpty" class="note">No readings yet. Put the thermometer in a potato and press Play.</p>
+        <p class="verdict" id="zeroth" style="margin-top:10px"></p>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+    <fieldset>
+      <legend>Potato A</legend>
+      <div class="ctrl">
+        <div class="lab"><label for="tA">Starting temperature</label><output id="tAOut" for="tA" aria-hidden="true"></output></div>
+        <input id="tA" type="range" min="0" max="100" step="1" value="80">
+      </div>
+      <div class="ctrl" style="margin-bottom:4px">
+        <label for="mA" class="lab">Size</label>
+        <select id="mA"><option value="0.1">Small (0.10 kg)</option><option value="0.2" selected>Medium (0.20 kg)</option><option value="0.4">Large (0.40 kg)</option></select>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Potato B</legend>
+      <div class="ctrl">
+        <div class="lab"><label for="tB">Starting temperature</label><output id="tBOut" for="tB" aria-hidden="true"></output></div>
+        <input id="tB" type="range" min="0" max="100" step="1" value="20">
+      </div>
+      <div class="ctrl" style="margin-bottom:4px">
+        <label for="mB" class="lab">Size</label>
+        <select id="mB"><option value="0.1">Small (0.10 kg)</option><option value="0.2" selected>Medium (0.20 kg)</option><option value="0.4">Large (0.40 kg)</option></select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Thermal contact</legend>
+      <button id="contact" type="button" aria-pressed="false">Put potatoes in contact</button>
+    </fieldset>
+
+    <fieldset class="radios">
+      <legend>Thermometer</legend>
+      <label><input type="radio" name="thermo" value="air" checked> In the air (not touching anything)</label>
+      <label><input type="radio" name="thermo" value="A"> In potato A</label>
+      <label><input type="radio" name="thermo" value="B"> In potato B</label>
+      <button id="thReset" type="button" style="margin-top:6px">Reset thermometer to 20 °C</button>
+    </fieldset>
+
+    <p class="verdict" id="verdict"></p>
+
+    <div class="buttons">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button" aria-describedby="resetHint">Reset</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the simulation by 0.5 minute and pauses.</p>
+    <p id="resetHint" class="sr-only">Separates the potatoes, sets them to their starting temperatures, returns the thermometer to the air at 20 degrees Celsius, and clears the graph and tables.</p>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values</caption>
+      <tr><th scope="row">Elapsed time</th><td id="rT"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Temperatures</th></tr>
+      <tr><th scope="row">Potato A</th><td id="rA"></td></tr>
+      <tr><th scope="row">Potato B</th><td id="rB"></td></tr>
+      <tr><th scope="row">Thermometer reading</th><td id="rTh"></td></tr>
+      <tr><th scope="row" colspan="2" class="group">Energy</th></tr>
+      <tr><th scope="row">Heat flow between potatoes</th><td id="rP"></td></tr>
+      <tr><th scope="row">Total heat moved so far</th><td id="rQ"></td></tr>
+      <tr><th scope="row">Shared final temperature if left in contact</th><td id="rTf"></td></tr>
+      <tr><th scope="row">Average molecular KE in A, (3/2)kT</th><td id="rKA"></td></tr>
+      <tr><th scope="row">Average molecular KE in B</th><td id="rKB"></td></tr>
+    </table>
+    <p class="note">Speeded up: 1 s on screen = 1 minute. Potatoes: specific heat 3430 J/(kg·K). Thermometer: heat capacity 5 J/K. It takes a little heat from a hotter potato (or gives a little to a colder one), so a settled reading can differ slightly from the potato's starting temperature. Everything is insulated from the room.</p>
+
+    <!-- Screen-reader announcements: only at events, never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  // ---- Physics ----------------------------------------------------------------------
+  const C_POTATO = 3430;          // J/(kg·K)
+  const C_TH = 5;                 // thermometer heat capacity (J/K)
+  const K_AB = 0.5;               // potato–potato thermal conductance when touching (W/K)
+  const K_TH = 0.167;             // thermometer–potato conductance (W/K): settles in about half a minute
+  const T_ROOM = 20, KB = 1.380649e-23;
+  const SIM_PER_SEC = 60;         // simulated seconds per real second
+  const SETTLE = 0.1;             // °C: thermometer counts as settled when within this of the potato…
+  const SETTLE_TIME = 30;         // …for this long (s), so a brief crossing while the potato is still changing doesn't count
+  const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const INK = '#1d2430';
+  const sc = el('scene'), sctx = sc.getContext('2d');
+  const gr = el('graph'), gctx = gr.getContext('2d');
+
+  const f1 = x => { const s = x.toFixed(1); return s === '-0.0' ? '0.0' : s; };
+
+  // ---- State ------------------------------------------------------------------------------
+  let TA, TB, Tth, CA, CB, mA, mB;
+  let touching = false, where = 'air';
+  let t = 0, Q = 0, running = false, lastFrame = null;
+  let hist = [], samples = [], nextSample = 0, readings = [];
+  let settledLogged = false, eqAnnounced = false, settleTimer = 0;
+  let fs = 15;
+
+  function readSizes() { mA = +el('mA').value; mB = +el('mB').value; CA = mA * C_POTATO; CB = mB * C_POTATO; }
+  const powerAB = () => touching ? K_AB * (TA - TB) : 0;      // W, + = from A to B
+  const finalT = () => (CA * TA + CB * TB + (where === 'A' || where === 'B' ? C_TH * Tth : 0)) / (CA + CB + (where === 'A' || where === 'B' ? C_TH : 0));
+  // Molecule color: compares a potato's temperature with the shared equilibrium temperature.
+  // Fully red/blue at the starting difference, fading to green as the potatoes approach equilibrium.
+  const MOL_BLUE = [11, 79, 156], MOL_GREEN = [24, 115, 58], MOL_RED = [181, 35, 27];
+  let span0 = 30;
+  function energyFrac(T) {
+    const f = (T - finalT()) / span0;
+    return Math.abs(f) < 0.02 ? 0 : Math.max(-1, Math.min(1, f));
+  }
+  function molColor(T) {
+    const f = energyFrac(T), to = f > 0 ? MOL_RED : MOL_BLUE, k = Math.sqrt(Math.abs(f));   // stays clearly red/blue until close to equilibrium
+    const c = MOL_GREEN.map((g, i) => Math.round(g + (to[i] - g) * k));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  }
+  function colorWord(T) {
+    const f = energyFrac(T);
+    if (f === 0) return 'green (equilibrium energy)';
+    if (f > 0.25) return 'red (higher energy)';
+    if (f > 0) return 'reddish green (a little above equilibrium energy)';
+    if (f < -0.25) return 'blue (lower energy)';
+    return 'bluish green (a little below equilibrium energy)';
+  }
+  const thermoTarget = () => where === 'A' ? TA : where === 'B' ? TB : null;
+
+  function sample() {
+    samples.push({ t: t / 60, TA, TB, Tth, touching, where });
+  }
+  function advance(dtSim) {
+    let left = dtSim;
+    while (left > 1e-9) {
+      if (t + 1e-6 >= nextSample) { sample(); nextSample += 30; }
+      const h = Math.min(left, 0.5, nextSample - t);
+      const P = powerAB();
+      let PthA = 0, PthB = 0;
+      if (where === 'A') PthA = K_TH * (TA - Tth);
+      if (where === 'B') PthB = K_TH * (TB - Tth);
+      TA += (-P - PthA) * h / CA;
+      TB += (P - PthB) * h / CB;
+      Tth += (PthA + PthB) * h / C_TH;
+      Q += P * h;
+      t += h; left -= h;
+      if (Math.floor((t - h) / 6) !== Math.floor(t / 6)) hist.push([t / 60, TA, TB, Tth]);
+      const tg = thermoTarget();
+      settleTimer = tg !== null && Math.abs(Tth - tg) < SETTLE ? settleTimer + h : 0;
+      checkEvents();
+    }
+  }
+  const thSettled = () => thermoTarget() !== null && settleTimer >= SETTLE_TIME;
+  function checkEvents() {
+    if (thSettled() && !settledLogged) {
+      settledLogged = true;
+      readings.push({ n: readings.length + 1, t: t / 60, where, reading: Tth, touching });
+      renderReadings();
+      announce(`Thermometer settled in potato ${where}: it reads ${f1(Tth)} degrees Celsius. The thermometer and potato ${where} are now in thermal equilibrium.`);
+    }
+    if (touching && !eqAnnounced && Math.abs(TA - TB) < SETTLE) {
+      eqAnnounced = true;
+      announce(`Potatoes A and B have reached thermal equilibrium at ${f1((TA + TB) / 2)} degrees Celsius. No more heat flows between them.`);
+    }
+  }
+
+  // ---- Molecules ------------------------------------------------------------------------------
+  // Each potato holds jiggling molecules; jiggle speed grows with temperature (exaggerated so the difference is visible).
+  const MOLS = 46;
+  let molsA = [], molsB = [];
+  function makeMols() {
+    const mk = () => Array.from({ length: MOLS }, () => ({ u: Math.random() * 2 - 1, v: Math.random() * 2 - 1, vx: 0, vy: 0 }));
+    molsA = mk(); molsB = mk();
+  }
+  const jiggle = T => 0.25 + 2.2 * Math.max(0, T + 30) / 130;  // relative speed: about 3× faster at 100 °C than at 0 °C
+  function moveMols(list, T, dt) {
+    const sp = jiggle(T) * 0.9;
+    for (const m of list) {
+      m.vx += (Math.random() - 0.5) * sp * 4 * dt * 10; m.vy += (Math.random() - 0.5) * sp * 4 * dt * 10;
+      const v = Math.hypot(m.vx, m.vy); if (v > sp) { m.vx *= sp / v; m.vy *= sp / v; }
+      m.u += m.vx * dt; m.v += m.vy * dt;
+      const d2 = m.u * m.u + m.v * m.v;
+      if (d2 > 0.72) {               // bounce off the inside of the potato and never leave it
+        const k = Math.sqrt(0.72 / d2); m.u *= k; m.v *= k; m.vx = -m.vx; m.vy = -m.vy;
+      }
+    }
+  }
+  // Energy packets crossing the contact surface: how many depends on the heat flow
+  let packets = [], packetAcc = 0;
+  function movePackets(dt) {
+    const P = powerAB();
+    if (running && touching && Math.abs(P) > 0.02) {
+      packetAcc += Math.min(12, Math.abs(P) * 0.6) * dt;
+      while (packetAcc >= 1) { packetAcc -= 1; packets.push({ s: 0, y: Math.random() * 2 - 1, dir: P > 0 ? 1 : -1 }); }
+    }
+    for (const p of packets) p.s += dt * 0.8;
+    packets = packets.filter(p => p.s < 1);
+  }
+
+  // ---- Scene drawing -------------------------------------------------------------------------
+  function scaleFont(cv) { return Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width)))); }
+  function text(ctx, cv, s, x, y, align = 'center', weight = 600, size = fs) {
+    ctx.save(); ctx.font = weight + ' ' + size + 'px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(s).width;
+    let x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    x0 = Math.max(4, Math.min(cv.width - w - 4, x0));
+    y = Math.max(size * 0.75, Math.min(cv.height - size * 0.75, y));
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.lineJoin = 'round'; ctx.fillStyle = INK;
+    ctx.strokeText(s, x0, y); ctx.fillText(s, x0, y); ctx.restore();
+  }
+  function layout() {
+    const W = sc.width, H = sc.height;
+    const rA = 95 * Math.cbrt(mA / 0.2), rB = 95 * Math.cbrt(mB / 0.2);
+    const cy = H * 0.53;
+    const gap = touching ? 0 : 170;
+    const total = 2 * rA * 1.25 + 2 * rB * 1.25 + gap;
+    const xA = W / 2 - total / 2 + rA * 1.25, xB = xA + rA * 1.25 + gap + rB * 1.25;
+    return { W, H, cy, rA, rB, xA, xB, contactX: xA + rA * 1.25 };
+  }
+  function potatoPath(ctx, x, y, r, seed) {
+    // a lumpy oval: radius 1.25r across, r tall
+    ctx.beginPath();
+    for (let k = 0; k <= 48; k++) {
+      const a = k / 48 * Math.PI * 2;
+      const lump = 1 + 0.045 * Math.sin(3 * a + seed) + 0.03 * Math.sin(5 * a + 2 * seed);
+      const px = x + Math.cos(a) * r * 1.25 * lump, py = y + Math.sin(a) * r * lump;
+      k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+  }
+  function drawPotato(ctx, x, y, r, seed, mols, T, name) {
+    potatoPath(ctx, x, y, r, seed);
+    ctx.fillStyle = css('--potato'); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = molColor(T);
+    for (const m of mols) { ctx.beginPath(); ctx.arc(x + m.u * r * 1.3, y + m.v * r * 1.03, 4.6, 0, Math.PI * 2); ctx.fill(); }
+    // labels below the potato, where the thermometer never goes
+    text(ctx, sc, `Potato ${name}`, x, y + r + fs * 1.1);
+    text(ctx, sc, `${f1(T)} °C`, x, y + r + fs * 2.3, 'center', 700);
+  }
+  function drawThermometer(ctx, L) {
+    // position: bulb in the chosen potato, or standing in the air at the top center
+    let bx, by;
+    if (where === 'A') { bx = L.xA - L.rA * 0.35; by = L.cy - L.rA * 0.25; }
+    else if (where === 'B') { bx = L.xB + L.rB * 0.35; by = L.cy - L.rB * 0.25; }
+    else { bx = (L.xA + L.rA * 1.25 + L.xB - L.rB * 1.25) / 2; by = L.cy - Math.max(L.rA, L.rB) - 12; }   // in the air: above the gap
+    const len = Math.min(185, by - fs * 2.2), w = 16, top = by - len;
+    // glass tube
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - w / 2, top, w, len, 8) : ctx.rect(bx - w / 2, top, w, len); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx, by + 6, 15, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
+    // liquid column: 0 °C at 20 px above the bulb, 100 °C near the top
+    const y0 = by - 16, y100 = top + 14, frac = Math.max(0, Math.min(1.04, Tth / 100));
+    ctx.fillStyle = INK; ctx.fillRect(bx - 3.5, y0 - frac * (y0 - y100), 7, frac * (y0 - y100) + 10);
+    // scale
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.font = Math.round(fs * 0.75) + 'px system-ui, sans-serif';
+    ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (let k = 0; k <= 100; k += 10) {
+      const y = y0 - k / 100 * (y0 - y100);
+      ctx.beginPath(); ctx.moveTo(bx + w / 2, y); ctx.lineTo(bx + w / 2 + (k % 50 === 0 ? 12 : 6), y); ctx.stroke();
+      if (k % 50 === 0) ctx.fillText(String(k), bx + w / 2 + 15, y);
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    // reading box
+    const settled = thSettled();
+    text(ctx, sc, `Thermometer ${f1(Tth)} °C${settled ? ' (settled)' : ''}`, bx, top - fs * 0.9, 'center', 700);
+  }
+  function drawScene() {
+    const ctx = sctx; fs = scaleFont(sc);
+    const L = layout();
+    ctx.clearRect(0, 0, L.W, L.H);
+    drawPotato(ctx, L.xA, L.cy, L.rA, 1.3, molsA, TA, 'A');
+    drawPotato(ctx, L.xB, L.cy, L.rB, 4.1, molsB, TB, 'B');
+    // contact surface and energy packets
+    if (touching) {
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(L.contactX, L.cy - 60); ctx.lineTo(L.contactX, L.cy + 60); ctx.stroke(); ctx.setLineDash([]);
+      for (const p of packets) {
+        const x = L.contactX + p.dir * (-70 + 140 * p.s), y = L.cy + p.y * 45;
+        ctx.fillStyle = css('--energy'); ctx.strokeStyle = INK; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + p.dir * 11, y); ctx.lineTo(x - p.dir * 9, y - 7); ctx.lineTo(x - p.dir * 9, y + 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      const P = powerAB();
+      const msg = Math.abs(TA - TB) < SETTLE ? 'Thermal equilibrium: no net heat flow' : `Heat flows ${P > 0 ? 'A → B' : 'B → A'}: ${Math.abs(P).toFixed(1)} W`;
+      text(ctx, sc, msg, L.contactX, L.H - fs * 0.9, 'center', 700);
+    } else {
+      text(ctx, sc, 'Not touching: no heat flows between the potatoes', L.W / 2, L.H - fs * 0.9, 'center', 600);
+    }
+    drawThermometer(ctx, L);
+  }
+
+  // ---- Graph --------------------------------------------------------------------------------
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+    return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * mag;
+  }
+  function drawGraph() {
+    const ctx = gctx, W = gr.width, H = gr.height; fs = scaleFont(gr);
+    ctx.clearRect(0, 0, W, H);
+    const padL = fs * 3.8, padR = fs * 7.5, padT = 20, padB = fs * 3.2, w = W - padL - padR, h = H - padT - padB;
+    const tMax = Math.max(5, Math.ceil(t / 60 * 1.1));
+    const X = x => padL + x / tMax * w, Y = y => padT + (100 - y) / 100 * h;
+    ctx.font = fs + 'px system-ui, sans-serif'; ctx.fillStyle = '#5b6575';
+    const xs = niceStep(tMax, 6);
+    ctx.textAlign = 'center';
+    for (let x = 0; x <= tMax + 1e-9; x += xs) {
+      ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(x), padT); ctx.lineTo(X(x), padT + h); ctx.stroke();
+      ctx.fillText(+x.toFixed(6), X(x), padT + h + fs * 1.3);
+    }
+    ctx.textAlign = 'right';
+    for (let y = 0; y <= 100; y += 20) {
+      ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, Y(y)); ctx.lineTo(padL + w, Y(y)); ctx.stroke();
+      ctx.fillText(String(y), padL - 8, Y(y) + fs * 0.35);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillText('Time (min)', padL + w / 2, H - fs * 0.5);
+    ctx.save(); ctx.translate(fs, padT + h / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('Temperature (°C)', 0, 0); ctx.restore();
+    ctx.strokeStyle = css('--axis'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + h); ctx.lineTo(padL + w, padT + h); ctx.stroke();
+    const pts = hist.concat([[t / 60, TA, TB, Tth]]);
+    const line = (i, color, dash, width) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.lineJoin = 'round'; ctx.beginPath();
+      pts.forEach((p, k) => k ? ctx.lineTo(X(p[0]), Y(p[i])) : ctx.moveTo(X(p[0]), Y(p[i])));
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    line(3, css('--th'), [2, 5], 2.5);
+    line(2, css('--b'), [10, 5], 3.5);
+    line(1, css('--a'), [], 3.5);
+    // end labels, spread apart so they don't overlap
+    const last = pts[pts.length - 1];
+    const labs = [['A', last[1]], ['B', last[2]], ['Thermometer', last[3]]].map(([s, v]) => ({ s, y: Y(v) })).sort((p, q) => p.y - q.y);
+    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < fs * 1.2) labs[i].y = labs[i - 1].y + fs * 1.2;
+    ctx.font = '600 ' + fs + 'px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
+    for (const l of labs) ctx.fillText(l.s, X(last[0]) + 8 > W - padR ? W - padR + 6 : Math.min(W - ctx.measureText(l.s).width - 4, X(last[0]) + 8), Math.min(padT + h + fs * 0.4, l.y));
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // ---- Readouts, text alternatives -------------------------------------------------------------
+  function zerothText() {
+    const a = [...readings].reverse().find(r => r.where === 'A'), b = [...readings].reverse().find(r => r.where === 'B');
+    if (!a || !b) return 'Zeroth law check: take a settled reading in both potatoes.';
+    const same = Math.abs(a.reading - b.reading) < 0.25;
+    const apart = Math.abs(a.t - b.t);
+    return same
+      ? `Latest readings: A ${f1(a.reading)} °C, B ${f1(b.reading)} °C. The thermometer is in equilibrium with both, so A and B are in equilibrium with each other: they have the same temperature (zeroth law).`
+      : `Latest readings: A ${f1(a.reading)} °C, B ${f1(b.reading)} °C${apart > 2 ? ` (taken ${f1(apart)} min apart)` : ''}. Different readings, so A and B were not in thermal equilibrium${touching ? `: heat was still flowing from ${a.reading > b.reading ? 'A to B' : 'B to A'}. Move the thermometer back to recheck.` : `; if they touch, heat will flow from ${a.reading > b.reading ? 'A to B' : 'B to A'}.`}`;
+  }
+  function verdictText() {
+    if (Math.abs(TA - TB) < SETTLE) return touching ? 'A and B are touching and in thermal equilibrium: same temperature, no net heat flow.' : 'A and B have the same temperature: they would be in equilibrium if they touched.';
+    return touching ? `A and B are in thermal contact. Heat flows from the hotter potato (${TA > TB ? 'A' : 'B'}) to the colder one.` : 'A and B are not touching, so no heat flows between them.';
+  }
+  function readouts() {
+    el('rT').textContent = f1(t / 60) + ' min';
+    el('rA').textContent = f1(TA) + ' °C'; el('rB').textContent = f1(TB) + ' °C';
+    el('rTh').textContent = f1(Tth) + ' °C' + (thSettled() ? ' (settled)' : '');
+    const P = powerAB();
+    el('rP').textContent = !touching ? '0 (not touching)' : Math.abs(P) < 0.05 ? '0 W' : `${Math.abs(P).toFixed(1)} W, ${P > 0 ? 'A → B' : 'B → A'}`;
+    el('rQ').textContent = `${(Math.abs(Q) / 1000).toPrecision(3)} kJ${Math.abs(Q) > 1 ? (Q > 0 ? ', A → B' : ', B → A') : ''}`;
+    el('rTf').textContent = f1(finalT()) + ' °C';
+    el('rKA').innerHTML = `${(1.5 * KB * (TA + 273.15) / 1e-21).toFixed(2)} × 10<sup>−21</sup> J`;
+    el('rKB').innerHTML = `${(1.5 * KB * (TB + 273.15) / 1e-21).toFixed(2)} × 10<sup>−21</sup> J`;
+    el('verdict').textContent = verdictText();
+    el('zeroth').textContent = zerothText();
+  }
+  const whereText = () => where === 'air' ? 'in the air, touching nothing' : `in potato ${where}`;
+  function describe() {
+    const P = powerAB();
+    let s = `Potato A (${mA.toFixed(2)} kg) is at ${f1(TA)} °C and potato B (${mB.toFixed(2)} kg) is at ${f1(TB)} °C after ${f1(t / 60)} min. `;
+    s += touching ? (Math.abs(TA - TB) < SETTLE ? 'They are touching and in thermal equilibrium; no net heat flows. ' : `They are touching; heat flows from ${P > 0 ? 'A to B' : 'B to A'} at ${Math.abs(P).toFixed(1)} W, so the molecules in the hotter potato slow down and those in the colder potato speed up. `) : 'They are not touching. ';
+    s += `The molecules in A jiggle ${TA > TB + SETTLE ? 'faster than' : TA < TB - SETTLE ? 'slower than' : 'as fast as'} those in B; A's molecules are colored ${colorWord(TA)} and B's ${colorWord(TB)}. `;
+    const tgt = thermoTarget();
+    s += `The thermometer is ${whereText()} and reads ${f1(Tth)} °C` + (tgt !== null ? (thSettled() ? ', settled (in equilibrium with the potato).' : ', still changing.') : '.');
+    el('sceneDesc').textContent = s;
+    let gtx = `Temperatures from 0 to 100 °C over ${f1(t / 60)} minutes. Now: A ${f1(TA)} °C, B ${f1(TB)} °C, thermometer ${f1(Tth)} °C. `;
+    if (hist.length < 2) gtx += 'Press Play to start the graph.';
+    else if (touching) gtx += Math.abs(TA - TB) < SETTLE ? `The A and B lines have met at ${f1((TA + TB) / 2)} °C and stay flat.` : `The A and B lines are moving toward each other, toward ${f1(finalT())} °C.`;
+    else gtx += 'While the potatoes are apart, their lines stay flat (unless the thermometer is touching one, which changes it only slightly).';
+    el('graphDesc').textContent = gtx;
+  }
+  function renderData() {
+    el('dataBody').innerHTML = samples.map(r =>
+      `<tr><td>${f1(r.t)}</td><td>${f1(r.TA)}</td><td>${f1(r.TB)}</td><td>${f1(r.Tth)}</td><td>${r.touching ? 'yes' : 'no'}</td><td>${r.where === 'air' ? 'air' : 'potato ' + r.where}</td></tr>`).join('');
+    const any = samples.length > 0;
+    el('dataTable').hidden = !any; el('dataEmpty').hidden = any; el('csv').disabled = !any;
+  }
+  function renderReadings() {
+    el('readBody').innerHTML = readings.map(r =>
+      `<tr><td>${r.n}</td><td>${f1(r.t)}</td><td>potato ${r.where}</td><td>${f1(r.reading)}</td><td>${r.touching ? 'yes' : 'no'}</td></tr>`).join('');
+    el('readTable').hidden = readings.length === 0; el('readEmpty').hidden = readings.length > 0;
+    el('zeroth').textContent = zerothText();
+  }
+  function announce(msg) {
+    el('status').textContent = '';
+    setTimeout(() => { el('status').textContent = msg.replace(/°C/g, 'degrees Celsius').replace(/(\d) min\b/g, '$1 minutes').replace(/(\d) W\b/g, '$1 watts').replace(/A → B/g, 'A to B').replace(/B → A/g, 'B to A'); }, 50);
+  }
+  function refresh() { drawScene(); drawGraph(); readouts(); describe(); renderData(); }
+
+  // ---- Controls --------------------------------------------------------------------------------
+  function updateButtons() {
+    el('play').textContent = running ? 'Pause' : (t > 0 ? 'Resume' : 'Play');
+    el('contact').textContent = touching ? 'Separate the potatoes' : 'Put potatoes in contact';
+    el('contact').setAttribute('aria-pressed', touching ? 'true' : 'false');
+  }
+  function newRun() {
+    readSizes();
+    TA = +el('tA').value; TB = +el('tB').value; Tth = T_ROOM;
+    span0 = Math.max(3, Math.abs(TA - TB) / 2);
+    touching = false; where = 'air'; document.querySelector('input[name="thermo"][value="air"]').checked = true;
+    t = 0; Q = 0; running = false; hist = [[0, TA, TB, Tth]]; samples = []; nextSample = 0; readings = [];
+    settledLogged = false; eqAnnounced = false; settleTimer = 0; packets = [];
+    makeMols(); updateButtons(); renderReadings(); refresh();
+  }
+  function syncLabels() {
+    const a = el('tA').value, b = el('tB').value;
+    el('tAOut').textContent = a + ' °C'; el('tBOut').textContent = b + ' °C';
+    el('tA').setAttribute('aria-valuetext', a + ' degrees Celsius');
+    el('tB').setAttribute('aria-valuetext', b + ' degrees Celsius');
+  }
+  ['tA', 'tB'].forEach(id => el(id).addEventListener('input', () => { syncLabels(); newRun(); }));
+  ['mA', 'mB'].forEach(id => el(id).addEventListener('change', () => { newRun(); announce(`Potato ${id.slice(1)} is now ${(+el(id).value).toFixed(2)} kilograms. Simulation reset.`); }));
+  el('contact').addEventListener('click', () => {
+    touching = !touching; eqAnnounced = false; updateButtons(); refresh();
+    announce(touching
+      ? (Math.abs(TA - TB) < SETTLE ? 'Potatoes in contact. They already have the same temperature, so no net heat flows.' : `Potatoes in contact. Heat will flow from ${TA > TB ? 'A to B' : 'B to A'}.` + (running ? '' : ' Press Play to watch.'))
+      : 'Potatoes separated. Heat stops flowing between them.');
+  });
+  document.querySelectorAll('input[name="thermo"]').forEach(r => r.addEventListener('change', () => {
+    where = r.value; settledLogged = false; settleTimer = 0; refresh();
+    announce(where === 'air' ? `Thermometer moved to the air. It keeps reading ${f1(Tth)} degrees Celsius.` : `Thermometer placed in potato ${where}, which is at ${f1(thermoTarget())} degrees Celsius. The thermometer reads ${f1(Tth)} and will change until it matches.` + (running ? '' : ' Press Play to watch.'));
+  }));
+  el('thReset').addEventListener('click', () => {
+    Tth = T_ROOM; settledLogged = false; settleTimer = 0; refresh();
+    announce('Thermometer reset to 20 degrees Celsius.');
+  });
+  el('play').addEventListener('click', () => {
+    running = !running; updateButtons();
+    if (running) announce(t > 0 ? 'Resumed.' : 'Playing.');
+    else { refresh(); announce(`Paused at ${f1(t / 60)} minutes. Potato A ${f1(TA)} degrees Celsius, potato B ${f1(TB)}, thermometer ${f1(Tth)}.`); }
+  });
+  el('step').addEventListener('click', () => {
+    running = false; advance(30); updateButtons(); refresh();
+    announce(`${f1(t / 60)} minutes. Potato A ${f1(TA)} degrees Celsius, potato B ${f1(TB)}, thermometer ${f1(Tth)}.`);
+  });
+  el('reset').addEventListener('click', () => { newRun(); announce('Reset. Potatoes separated at their starting temperatures; thermometer in the air at 20 degrees Celsius.'); });
+  el('csv').addEventListener('click', () => {
+    const head = 't (min),potato A (C),potato B (C),thermometer (C),potatoes touching,thermometer in';
+    const lines = samples.map(r => [r.t.toFixed(2), r.TA.toFixed(3), r.TB.toFixed(3), r.Tth.toFixed(3), r.touching ? 'yes' : 'no', r.where].join(','));
+    const meta = `# potato A ${mA} kg, potato B ${mB} kg, c = 3430 J/(kg K); thermometer 5 J/K`;
+    const rd = readings.length ? '\n\n# thermometer readings\nreading,t (min),in,reading (C),potatoes touching\n' + readings.map(r => [r.n, r.t.toFixed(2), r.where, r.reading.toFixed(2), r.touching ? 'yes' : 'no'].join(',')).join('\n') : '';
+    const blob = new Blob([meta + '\n' + head + '\n' + lines.join('\n') + rd + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'zeroth_law_temperatures.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  window.addEventListener('resize', refresh);
+
+  let lastText = 0, lastData = 0;
+  function frame(now) {
+    if (lastFrame !== null) {
+      const dt = Math.min(0.05, (now - lastFrame) / 1000);
+      if (running) advance(dt * SIM_PER_SEC);
+      moveMols(molsA, TA, dt); moveMols(molsB, TB, dt); movePackets(dt);
+    }
+    lastFrame = now;
+    drawScene();
+    if (running) {
+      drawGraph(); readouts();
+      if (now - lastText > 2000) { describe(); lastText = now; }
+      if (now - lastData > 1000) { renderData(); lastData = now; }
+    }
+    requestAnimationFrame(frame);    // molecules keep jiggling even when paused
+  }
+
+  syncLabels(); newRun();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
