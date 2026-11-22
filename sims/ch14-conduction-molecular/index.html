@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heat Conduction at the Molecular Level</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd; --accent: #0072B2; --axis: #6B7480; --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; padding: 16px 20px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  #graph { margin-top: 14px; }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 14px; }
+  .ctrl .lab { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--accent); text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select { font: inherit; padding: 4px 6px; border: 1px solid #8a93a0; border-radius: 6px; background: #fff; color: var(--ink); }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #8a93a0;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 6.5em; }
+  :is(a, button, input, select, summary, .scroll):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .checks label { display: block; margin: 6px 0; font-size: .95rem; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 8px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: .95rem; }
+  table.readouts thead th { font-weight: 600; text-align: right; border-top: 0; }
+  table.readouts thead th:first-child { text-align: left; }
+  table.readouts tbody th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin-top: 8px; list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  .mech { margin: 10px 0 0; padding-left: 20px; font-size: .95rem; }
+  .mech li { margin: 3px 0; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .scroll { overflow-x: auto; max-width: 100%; }
+  table.data { margin-top: 8px; }
+  table.data th, table.data td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data th:nth-child(-n+2), table.data td:nth-child(-n+2) { text-align: left; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Heat Conduction at the Molecular Level</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 14.5</span>
+</header>
+
+<main class="layout">
+  <section class="panel" aria-labelledby="sceneHeading">
+    <h2 id="sceneHeading" class="sr-only">Five conducting strips and heat graph</h2>
+    <canvas id="scene" width="1000" height="900" role="img"
+            aria-label="Five horizontal strips of material, from top to bottom diamond, copper, glass, water and air, each held between a hot wall on the left and a cold wall on the right. Particles are drawn as circles whose shade shows their energy. A text summary and a results table follow the graphs."></canvas>
+
+    <ul class="legend" aria-label="Diagram key">
+      <li><svg width="70" height="12" aria-hidden="true"><defs><linearGradient id="lg"><stop offset="0" stop-color="#2c5f9e"/><stop offset=".5" stop-color="#ece7df"/><stop offset="1" stop-color="#c43c24"/></linearGradient></defs><rect x="1" y="1" width="68" height="10" fill="url(#lg)" stroke="#1d2430"/></svg>Particle shade: cold (blue) → hot (red); the numbers are in the readout table</li>
+      <li><svg width="14" height="12" aria-hidden="true"><circle cx="7" cy="6" r="3" fill="#ece7df" stroke="#1d2430"/></svg>Small dots in copper: free electrons</li>
+      <li><svg width="22" height="12" aria-hidden="true"><circle cx="11" cy="6" r="5" fill="none" stroke="#1d2430" stroke-width="2"/></svg>Ring and trail: one followed particle per strip</li>
+    </ul>
+
+    <ul class="mech" aria-label="How each substance carries heat">
+      <li><strong>Diamond:</strong> stiff bonds between light atoms in a perfect crystal; vibrations travel as waves (phonons) and scatter rarely.</li>
+      <li><strong>Copper:</strong> free electrons race through the lattice of ions, carrying energy and trading it with the ions when they collide.</li>
+      <li><strong>Glass:</strong> strong bonds but a random network; vibrations scatter within an atom or two, so energy hops slowly from neighbor to neighbor.</li>
+      <li><strong>Water:</strong> heavier molecules packed close but free to move; energy passes by jostling collisions. (Real water would also carry heat by convection; that is switched off here.)</li>
+      <li><strong>Air:</strong> a few molecules far apart; energy moves only when a molecule crosses the gap or collides.</li>
+    </ul>
+
+    <canvas id="graph" width="1000" height="380" role="img"
+            aria-label="Graph of the total heat delivered to the cold wall versus time for each of the five strips. The text summary and results table give the same information."></canvas>
+    <ul class="legend" aria-label="Graph key" id="gkey"></ul>
+
+    <p class="summary"><strong>Graph summary:</strong> <span id="desc"></span></p>
+
+    <details id="dataBox">
+      <summary>Results table and CSV downloads</summary>
+      <div class="scroll" tabindex="0" role="region" aria-label="Results table, scrolls sideways">
+        <table class="data">
+          <caption id="dataCaption"></caption>
+          <thead><tr><th scope="col">Substance</th><th scope="col">How heat moves</th><th scope="col">Real k (W/(m·K))</th>
+            <th scope="col">Model heat-flow rate (ε/τ)</th><th scope="col">Heat delivered Q (ε)</th><th scope="col">Middle temperature (K)</th><th scope="col">Model rank</th></tr></thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+      <p class="btnrow"><button id="csv" type="button">Download results as CSV</button>
+         <button id="csv2" type="button">Download heat-vs-time samples as CSV</button></p>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+    <div class="ctrl">
+      <div class="lab"><label for="Th">Hot wall temperature</label><output id="ThOut" for="Th" aria-hidden="true"></output></div>
+      <input id="Th" type="range" min="300" max="900" step="10" value="600">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="Tc">Cold wall temperature</label><output id="TcOut" for="Tc" aria-hidden="true"></output></div>
+      <input id="Tc" type="range" min="60" max="300" step="10" value="150">
+    </div>
+
+    <div class="buttons">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="pulse" type="button" aria-describedby="pulseHint">Send heat pulse</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the model by 1 time unit.</p>
+    <p id="pulseHint" class="sr-only">Gives the particles at the hot end of every strip a burst of extra energy.</p>
+
+    <div class="checks">
+      <label>Speed
+        <select id="rate">
+          <option value="1">1× (watch the motion)</option>
+          <option value="5" selected>5×</option>
+          <option value="20">20×</option>
+          <option value="50">50× (as fast as your device allows)</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="follow" checked> Follow one particle in each strip</label>
+      <label><input type="checkbox" id="zoom"> Graph: show only glass, water and air (rescaled)</label>
+    </div>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values for each strip</caption>
+      <thead><tr><th scope="col">Strip</th><th scope="col">Middle T</th><th scope="col">Heat-flow rate</th></tr></thead>
+      <tbody id="readBody"></tbody>
+    </table>
+    <p class="note" id="timeNote"></p>
+    <p class="note">*Air has only five molecules, so its middle temperature jumps around even after long averaging.</p>
+    <p class="note">Model units: time in τ, energy in ε, k<sub>B</sub> = 1; 1 model temperature unit = 300 K. The model gets the <em>order</em> right, but real conductivities span 87,000× (air to diamond) while the model spans about 100×. Diamond's k is a typical value; the others are from OpenStax Table 14.3.</p>
+
+    <!-- Screen-reader announcements: only at events, never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<script>
+// ---- Molecular conduction engine (classical, qualitative; model units) ----
+function makeEngine(P) {
+  P = Object.assign({
+    L: 24, H: 4, dt: 0.005, gamma: 6.0, seed: 12345, hold: 0.05,
+    dia: { m: 1, k: 40, kd: 20 },
+    cu:  { m: 4, k: 40, kd: 20, ne: 60, vF: 7, mfp: 3, alpha: 0.5 },
+    gl:  { mMin: 0.8, mMax: 1.4, kMin: 12, kMax: 40, jitter: 0.32, cut: 1.7 },
+    wa:  { n: 50, m: 8, sigma: 1 },
+    air: { n: 5, m: 3, r: 0.25 },
+  }, P || {});
+  let seed = 12345;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const gauss = () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+  const L = P.L, H = P.H, NC = L, NR = H;  // lattice columns and rows (spacing 1, centers at i+0.5)
+  let Th = 2, Tc = 0.5;
+
+  // ---- lattice solids ----
+  function lattice(kind) {
+    const a = { kind, x: [], y: [], x0: [], y0: [], vx: [], vy: [], m: [], col: [], bonds: [], E: [] };
+    const idx = (c, r) => c * NR + r;
+    for (let c = 0; c < NC; c++) for (let r = 0; r < NR; r++) {
+      let x = c + 0.5, y = r + 0.5, m;
+      if (kind === 'gl') { x += (rnd() * 2 - 1) * P.gl.jitter; y += (rnd() * 2 - 1) * P.gl.jitter;
+        x = Math.max(0.15, Math.min(L - 0.15, x)); y = Math.max(0.15, Math.min(H - 0.15, y));
+        m = P.gl.mMin + rnd() * (P.gl.mMax - P.gl.mMin); }
+      else m = kind === 'dia' ? P.dia.m : P.cu.m;
+      a.x.push(x); a.y.push(y); a.x0.push(x); a.y0.push(y); a.vx.push(0); a.vy.push(0); a.m.push(m); a.col.push(c); a.E.push(0);
+    }
+    const n = a.x.length;
+    if (kind === 'gl') {
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        const d = Math.hypot(a.x[j] - a.x[i], a.y[j] - a.y[i]);
+        if (d < P.gl.cut) a.bonds.push([i, j, P.gl.kMin + rnd() * (P.gl.kMax - P.gl.kMin), d]);
+      }
+      // every atom gets at least 3 bonds, so none rattles loose
+      const deg = new Array(n).fill(0), has = new Set();
+      for (const [i, j] of a.bonds) { deg[i]++; deg[j]++; has.add(i * n + j); }
+      for (let i = 0; i < n; i++) {
+        const near = [...Array(n).keys()].filter(j => j !== i).sort((p, q) =>
+          Math.hypot(a.x[p] - a.x[i], a.y[p] - a.y[i]) - Math.hypot(a.x[q] - a.x[i], a.y[q] - a.y[i]));
+        for (const j of near) { if (deg[i] >= 3) break;
+          const key = Math.min(i, j) * n + Math.max(i, j); if (has.has(key)) continue;
+          has.add(key); deg[i]++; deg[j]++;
+          a.bonds.push([Math.min(i, j), Math.max(i, j), P.gl.kMin + rnd() * (P.gl.kMax - P.gl.kMin), Math.hypot(a.x[j] - a.x[i], a.y[j] - a.y[i])]); }
+      }
+    } else {
+      const q = kind === 'dia' ? P.dia : P.cu;
+      for (let c = 0; c < NC; c++) for (let r = 0; r < NR; r++) {
+        const i = idx(c, r);
+        if (c + 1 < NC) a.bonds.push([i, idx(c + 1, r), q.k, 1]);
+        if (r + 1 < NR) a.bonds.push([i, idx(c, r + 1), q.k, 1]);
+        if (c + 1 < NC && r + 1 < NR) a.bonds.push([i, idx(c + 1, r + 1), q.kd, Math.SQRT2]);
+        if (c + 1 < NC && r > 0) a.bonds.push([i, idx(c + 1, r - 1), q.kd, Math.SQRT2]);
+      }
+    }
+    a.kt = kind === 'dia' ? P.dia.k : kind === 'cu' ? P.cu.k : (P.gl.kMin + P.gl.kMax) / 2;
+    a.fx = new Float64Array(n); a.fy = new Float64Array(n);
+    return a;
+  }
+  function latticeForces(a) {
+    a.fx.fill(0); a.fy.fill(0);
+    for (const [i, j, k, r0] of a.bonds) {
+      const dx = a.x[j] - a.x[i], dy = a.y[j] - a.y[i], r = Math.hypot(dx, dy) || 1e-9;
+      const f = k * (r - r0) / r;
+      a.fx[i] += f * dx; a.fy[i] += f * dy; a.fx[j] -= f * dx; a.fy[j] -= f * dy;
+    }
+    // the end columns are held at their sites by the walls, so the crystal can't drift or rotate
+    // (and a very weak hold on every atom stops the thin strip from bending like a plucked string)
+    for (let i = 0; i < a.x.length; i++) {
+      const kt = (a.col[i] === 0 || a.col[i] === NC - 1) ? a.kt : a.kt * P.hold;
+      a.fx[i] -= kt * (a.x[i] - a.x0[i]); a.fy[i] -= kt * (a.y[i] - a.y0[i]);
+    }
+  }
+  function latticeStep(s, dt) {
+    const a = s.lat, n = a.x.length;
+    for (let i = 0; i < n; i++) { a.vx[i] += 0.5 * dt * a.fx[i] / a.m[i]; a.vy[i] += 0.5 * dt * a.fy[i] / a.m[i];
+      a.x[i] += dt * a.vx[i]; a.y[i] += dt * a.vy[i]; }
+    latticeForces(a);
+    for (let i = 0; i < n; i++) { a.vx[i] += 0.5 * dt * a.fx[i] / a.m[i]; a.vy[i] += 0.5 * dt * a.fy[i] / a.m[i]; }
+    // Langevin reservoirs on the first and last column
+    for (let i = 0; i < n; i++) {
+      const c = a.col[i]; if (c !== 0 && c !== NC - 1) continue;
+      const T = c === 0 ? Th : Tc, m = a.m[i];
+      const ke0 = 0.5 * m * (a.vx[i] ** 2 + a.vy[i] ** 2);
+      const sd = Math.sqrt(2 * P.gamma * T * dt / m);
+      a.vx[i] += -P.gamma * a.vx[i] * dt + sd * gauss();
+      a.vy[i] += -P.gamma * a.vy[i] * dt + sd * gauss();
+      const dE = 0.5 * m * (a.vx[i] ** 2 + a.vy[i] ** 2) - ke0;
+      if (c === 0) s.qin += dE; else s.qout -= dE;
+    }
+  }
+
+  // ---- copper electrons ----
+  function electrons() {
+    const e = { x: [], y: [], dx: [], dy: [], e: [] };
+    for (let i = 0; i < P.cu.ne; i++) {
+      const th = rnd() * 2 * Math.PI;
+      e.x.push(rnd() * L); e.y.push(rnd() * H); e.dx.push(Math.cos(th)); e.dy.push(Math.sin(th)); e.e.push(Tc);
+    }
+    return e;
+  }
+  function electronStep(s, dt) {
+    const el = s.el, a = s.lat, v = P.cu.vF, pScat = v * dt / P.cu.mfp;
+    for (let i = 0; i < el.x.length; i++) {
+      el.x[i] += el.dx[i] * v * dt; el.y[i] += el.dy[i] * v * dt;
+      if (el.y[i] < 0) { el.y[i] = -el.y[i]; el.dy[i] = -el.dy[i]; }
+      if (el.y[i] > H) { el.y[i] = 2 * H - el.y[i]; el.dy[i] = -el.dy[i]; }
+      if (el.x[i] < 0) { el.x[i] = -el.x[i]; el.dx[i] = -el.dx[i]; s.qin += Th - el.e[i]; el.e[i] = Th; }
+      if (el.x[i] > L) { el.x[i] = 2 * L - el.x[i]; el.dx[i] = -el.dx[i]; s.qout += el.e[i] - Tc; el.e[i] = Tc; }
+      if (rnd() < pScat) {
+        const th = rnd() * 2 * Math.PI; el.dx[i] = Math.cos(th); el.dy[i] = Math.sin(th);
+        const c = Math.max(0, Math.min(NC - 1, Math.floor(el.x[i]))), r = Math.max(0, Math.min(NR - 1, Math.floor(el.y[i])));
+        const j = c * NR + r, m = a.m[j];
+        const ke = 0.5 * m * (a.vx[j] ** 2 + a.vy[j] ** 2);
+        const d = P.cu.alpha * (ke - el.e[i]);          // energy moved from ion to electron
+        el.e[i] += d;
+        const ke2 = Math.max(0, ke - d);
+        if (ke > 1e-12) { const f = Math.sqrt(ke2 / ke); a.vx[j] *= f; a.vy[j] *= f; }
+        else { const th2 = rnd() * 2 * Math.PI, sp = Math.sqrt(2 * ke2 / m); a.vx[j] = sp * Math.cos(th2); a.vy[j] = sp * Math.sin(th2); }
+        if (ke2 === 0 && ke - d < 0) el.e[i] += (ke - d);  // keep energy exact
+      }
+    }
+  }
+
+  // ---- fluids (water: dense soft disks; air: sparse hard disks) ----
+  function fluid(kind) {
+    const q = kind === 'wa' ? P.wa : P.air, f = { kind, x: [], y: [], vx: [], vy: [], E: [], m: q.m };
+    const n = q.n, rows = Math.max(1, Math.round(Math.sqrt(n * H / L))), cols = Math.ceil(n / rows);
+    for (let i = 0; i < n; i++) {
+      const c = i % cols, r = Math.floor(i / cols);
+      f.x.push((c + 0.5 + (rnd() - 0.5) * 0.2) * L / cols); f.y.push((r + 0.5 + (rnd() - 0.5) * 0.2) * H / rows);
+      f.vx.push(0); f.vy.push(0); f.E.push(0);
+    }
+    f.fx = new Float64Array(n); f.fy = new Float64Array(n);
+    return f;
+  }
+  function thermalWalls(s, f, rad) {
+    const m = f.m;
+    for (let i = 0; i < f.x.length; i++) {
+      if (f.y[i] < rad) { f.y[i] = 2 * rad - f.y[i]; f.vy[i] = Math.abs(f.vy[i]); }
+      if (f.y[i] > H - rad) { f.y[i] = 2 * (H - rad) - f.y[i]; f.vy[i] = -Math.abs(f.vy[i]); }
+      const hitL = f.x[i] < rad, hitR = f.x[i] > L - rad;
+      if (hitL || hitR) {
+        const T = hitL ? Th : Tc, ke0 = 0.5 * m * (f.vx[i] ** 2 + f.vy[i] ** 2);
+        let u = rnd(); if (u < 1e-12) u = 1e-12;
+        const vn = Math.sqrt(-2 * T * Math.log(u) / m);
+        f.vx[i] = hitL ? vn : -vn; f.vy[i] = Math.sqrt(T / m) * gauss();
+        f.x[i] = hitL ? 2 * rad - f.x[i] : 2 * (L - rad) - f.x[i];
+        const ke1 = 0.5 * m * (f.vx[i] ** 2 + f.vy[i] ** 2);
+        if (hitL) s.qin += ke1 - ke0; else s.qout += ke0 - ke1;
+      }
+    }
+  }
+  function waterForces(f) {
+    const n = f.x.length, sg = P.wa.sigma, rc2 = Math.pow(2, 1 / 3) * sg * sg;
+    f.fx.fill(0); f.fy.fill(0);
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const dx = f.x[j] - f.x[i], dy = f.y[j] - f.y[i], r2 = dx * dx + dy * dy;
+      if (r2 > rc2) continue;
+      const s2 = sg * sg / r2, s6 = s2 * s2 * s2;
+      const ff = 24 * s6 * (2 * s6 - 1) / r2;   // WCA repulsion
+      f.fx[i] -= ff * dx; f.fy[i] -= ff * dy; f.fx[j] += ff * dx; f.fy[j] += ff * dy;
+    }
+  }
+  function waterStep(s, dt) {
+    const f = s.fl, m = f.m, n = f.x.length;
+    for (let i = 0; i < n; i++) { f.vx[i] += 0.5 * dt * f.fx[i] / m; f.vy[i] += 0.5 * dt * f.fy[i] / m;
+      f.x[i] += dt * f.vx[i]; f.y[i] += dt * f.vy[i]; }
+    thermalWalls(s, f, 0.5 * P.wa.sigma);
+    waterForces(f);
+    for (let i = 0; i < n; i++) {
+      f.vx[i] += 0.5 * dt * f.fx[i] / m; f.vy[i] += 0.5 * dt * f.fy[i] / m;
+      // speed limit guards against rare overlaps after a thermal-wall re-emission
+      const v2 = f.vx[i] ** 2 + f.vy[i] ** 2, vmax = 12;
+      if (v2 > vmax * vmax) { const k = vmax / Math.sqrt(v2); f.vx[i] *= k; f.vy[i] *= k; }
+    }
+  }
+  function airStep(s, dt) {
+    const f = s.fl, n = f.x.length, r = P.air.r, d2 = 4 * r * r;
+    for (let i = 0; i < n; i++) { f.x[i] += dt * f.vx[i]; f.y[i] += dt * f.vy[i]; }
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const dx = f.x[j] - f.x[i], dy = f.y[j] - f.y[i], rr = dx * dx + dy * dy;
+      if (rr < d2 && rr > 0) {
+        const dvx = f.vx[j] - f.vx[i], dvy = f.vy[j] - f.vy[i], dot = dvx * dx + dvy * dy;
+        if (dot < 0) { const k = dot / rr; f.vx[i] += k * dx; f.vy[i] += k * dy; f.vx[j] -= k * dx; f.vy[j] -= k * dy; }
+      }
+    }
+    thermalWalls(s, f, r);
+  }
+
+  // ---- strips ----
+  const strips = [
+    { id: 'dia' }, { id: 'cu' }, { id: 'gl' }, { id: 'wa' }, { id: 'air' }
+  ];
+  function init(th, tc) {
+    Th = th; Tc = tc; seed = P.seed;
+    for (const s of strips) {
+      s.qin = 0; s.qout = 0;
+      if (s.id === 'dia' || s.id === 'cu' || s.id === 'gl') {
+        s.lat = lattice(s.id);
+        const a = s.lat;
+        for (let i = 0; i < a.x.length; i++) { const sd = Math.sqrt(2 * Tc / a.m[i]);  // KE + PE share → T
+          a.vx[i] = sd * gauss(); a.vy[i] = sd * gauss(); a.E[i] = Tc; }
+        latticeForces(a);
+        if (s.id === 'cu') s.el = electrons();
+      } else {
+        s.fl = fluid(s.id);
+        const f = s.fl;
+        for (let i = 0; i < f.x.length; i++) { const sd = Math.sqrt(Tc / f.m); f.vx[i] = sd * gauss(); f.vy[i] = sd * gauss(); f.E[i] = Tc; }
+        if (s.id === 'wa') waterForces(f);
+      }
+    }
+  }
+  // let every strip settle at the cold temperature before the hot end switches on
+  function equilibrate(tau) {
+    const th = Th; Th = Tc;
+    for (let t = 0; t < tau; t += P.dt) step();
+    Th = th; time = 0;
+    for (const s of strips) { s.qin = 0; s.qout = 0; s.Tmid = Tc; }
+  }
+  function setT(th, tc) { Th = th; Tc = tc; }
+  let time = 0;
+  function step() {
+    const dt = P.dt;
+    for (const s of strips) {
+      if (s.lat) latticeStep(s, dt);
+      if (s.el) electronStep(s, dt);
+      if (s.id === 'wa') waterStep(s, dt);
+      if (s.id === 'air') airStep(s, dt);
+    }
+    time += dt;
+  }
+  // smoothed per-particle "temperature" (kinetic energy; = T on average in 2D) for drawing
+  function smooth(tau, el) {
+    const k = Math.min(1, el / tau);
+    for (const s of strips) {
+      const o = s.lat || s.fl;
+      for (let i = 0; i < o.x.length; i++) {
+        const m = s.lat ? o.m[i] : o.m;
+        const ke = 0.5 * m * (o.vx[i] ** 2 + o.vy[i] ** 2);
+        o.E[i] += k * ((s.lat ? 2 * ke : ke) - o.E[i]);   // lattice: KE holds half the energy
+      }
+    }
+  }
+  // smoothed temperature of the middle of each strip (atoms/molecules within 2 spacings of the center)
+  function middle(tau, el) {
+    const k = Math.min(1, el / tau);
+    for (const s of strips) {
+      const o = s.lat || s.fl; let sum = 0, n = 0;
+      for (let i = 0; i < o.x.length; i++) if (Math.abs(o.x[i] - L / 2) < 2) {
+        const m = s.lat ? o.m[i] : o.m, ke = 0.5 * m * (o.vx[i] ** 2 + o.vy[i] ** 2); sum += ke; n++; }
+      if (s.el) for (let i = 0; i < s.el.x.length; i++) if (Math.abs(s.el.x[i] - L / 2) < 2) { sum += s.el.e[i]; n++; }
+      if (s.Tmid === undefined) s.Tmid = Tc;
+      // air has only a few molecules, so its reading is averaged over a longer time
+      if (n) s.Tmid += (s.id === 'air' ? k / 6 : k) * (sum / n - s.Tmid);
+    }
+  }
+  // Heat pulse: extra vibration / kinetic energy at the hot end of every strip
+  function pulse(amount) {
+    for (const s of strips) {
+      const o = s.lat || s.fl;
+      for (let i = 0; i < o.x.length; i++) {
+        if (o.x[i] > 2.2) continue;
+        const m = s.lat ? o.m[i] : o.m;
+        if (s.lat) { o.vx[i] += Math.sqrt(2 * amount / m); }   // a coherent push → a wave in a crystal
+        else { const sp = Math.hypot(o.vx[i], o.vy[i]) || 1e-6, ke = 0.5 * m * sp * sp, f = Math.sqrt((ke + amount) / ke);
+               o.vx[i] *= f; o.vy[i] *= f; }
+      }
+      if (s.el) for (let i = 0; i < s.el.x.length; i++) if (s.el.x[i] < 2.2) s.el.e[i] += amount;
+    }
+  }
+  return { P, strips, init, equilibrate, middle, setT, step, smooth, pulse, get time() { return time; }, set time(v) { time = v; },
+           get Th() { return Th; }, get Tc() { return Tc; } };
+}
+(() => {
+  const el = id => document.getElementById(id);
+  const scene = el('scene'), sx = scene.getContext('2d'), graph = el('graph'), gx = graph.getContext('2d');
+  const INK = '#1d2430', MUTED = '#5b6575';
+  const KPER = 300;   // K per model temperature unit
+  const INFO = {
+    dia: { name: 'Diamond', how: 'lattice waves (phonons), perfect crystal', short: 'phonons', k: '≈ 2000', color: '#0072B2', dash: [] },
+    cu:  { name: 'Copper',  how: 'free electrons', short: 'free electrons', k: '390', color: '#A66C00', dash: [14, 6] },
+    gl:  { name: 'Glass',   how: 'vibrations hopping through a random network', short: 'disordered network', k: '0.84', color: '#00866A', dash: [12, 4, 3, 4] },
+    wa:  { name: 'Water',   how: 'collisions between close-packed molecules', short: 'molecular collisions', k: '0.6', color: '#6A3D9A', dash: [5, 4] },
+    air: { name: 'Air',     how: 'molecules crossing the gap', short: 'sparse gas', k: '0.023', color: '#6B7480', dash: [2, 4] },
+  };
+  const E = makeEngine();
+  const L = E.P.L, H = E.P.H;
+  let running = false, lastFrame = null, hist = [], follow = {}, trails = {};
+  let lastTable = 0, settledAnnounced = false, lastSample = -1;
+
+  // ---- formatting ----
+  const fmtT = s => (s < 10 ? s.toFixed(1) : s.toFixed(0)) + ' τ';
+  const sig = x => !isFinite(x) ? '—' : Math.abs(x) >= 100 ? x.toFixed(0) : Math.abs(x) >= 0.0995 ? x.toPrecision(2) : x.toFixed(2);
+  const toK = T => Math.round(T * KPER / 10) * 10;
+
+  // ---- simulation control ----
+  function chooseFollow() {
+    follow = {}; trails = {};
+    for (const s of E.strips) {
+      if (s.el) { follow[s.id] = { src: 'el', i: 0 }; }
+      else { const o = s.lat || s.fl; let best = 0, bd = 1e9;
+        for (let i = 0; i < o.x.length; i++) { const d = Math.hypot(o.x[i] - L * 0.3, o.y[i] - H / 2); if (d < bd) { bd = d; best = i; } }
+        follow[s.id] = { src: s.lat ? 'lat' : 'fl', i: best }; }
+      trails[s.id] = [];
+    }
+  }
+  function temps() { return [+el('Th').value / KPER, +el('Tc').value / KPER]; }
+  function resetSim() {
+    const [th, tc] = temps();
+    E.init(th, tc); E.equilibrate(20);
+    hist = [{ t: 0, q: E.strips.map(() => 0) }]; lastSample = 0; settledAnnounced = false;
+    chooseFollow();
+  }
+  function sample() {
+    hist.push({ t: E.time, q: E.strips.map(s => s.qout) });
+    if (hist.length > 1600) hist = hist.filter((_, i) => i % 2 === 0 || i === hist.length - 1);
+  }
+  function rates() {
+    // slope of heat delivered over the last two-thirds of the run (skips the warm-up; needs 20 τ of data)
+    const now = hist[hist.length - 1];
+    if (!now || now.t < 20) return null;
+    const t0 = now.t / 3;
+    let a = hist[0]; for (const h of hist) { if (h.t <= t0) a = h; else break; }
+    return now.q.map((q, i) => (q - a.q[i]) / (now.t - a.t));
+  }
+  let owed = 0, stepCount = 0;   // fractional steps carried between frames
+  function advance(simTime, budgetMs) {
+    const t0 = performance.now();
+    owed += simTime / E.P.dt;
+    const nSteps = Math.floor(owed + 1e-9); owed -= nSteps;
+    let done = 0;
+    while (done < nSteps) {
+      E.step(); done++;
+      if (++stepCount % 4 === 0) { E.smooth(0.4, 4 * E.P.dt); E.middle(3, 4 * E.P.dt); }
+      if (E.time - lastSample >= 0.5) { sample(); lastSample = E.time; recordTrails(); }
+      if (budgetMs && done % 50 === 0 && performance.now() - t0 > budgetMs) { owed = 0; break; }
+    }
+  }
+  function pos(s) {
+    const f = follow[s.id]; if (!f) return null;
+    if (f.src === 'el') return [s.el.x[f.i], s.el.y[f.i]];
+    const o = s.lat || s.fl; return [o.x[f.i], o.y[f.i]];
+  }
+  function recordTrails() {
+    for (const s of E.strips) { const p = pos(s); if (!p) continue; const tr = trails[s.id];
+      tr.push(p); if (tr.length > 8) tr.shift(); }
+  }
+
+  // ---- drawing ----
+  let narrow = null, fs = 15;
+  const fontScale = cv => Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width))));
+  function heatColor(f) {
+    f = Math.max(0, Math.min(1, f));
+    const a = [44, 95, 158], m = [236, 231, 223], b = [196, 60, 36];
+    const [p, q, g] = f < 0.5 ? [a, m, f * 2] : [m, b, (f - 0.5) * 2];
+    return `rgb(${p.map((c, j) => Math.round(c + (q[j] - c) * g)).join(',')})`;
+  }
+  function tag(ctx, lines, x, y, size) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let w = 0; lines.forEach((l, i) => { ctx.font = `${i ? 500 : 700} ${size}px system-ui, sans-serif`; w = Math.max(w, ctx.measureText(l).width); });
+    const lh = size * 1.2, h = lh * lines.length + size * 0.4;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    ctx.fillRect(x - w / 2 - 6, y - h / 2, w + 12, h); ctx.strokeRect(x - w / 2 - 6, y - h / 2, w + 12, h);
+    ctx.fillStyle = INK;
+    lines.forEach((l, i) => { ctx.font = `${i ? 500 : 700} ${size}px system-ui, sans-serif`; ctx.fillText(l, x, y - h / 2 + size * 0.2 + lh * (i + 0.5)); });
+    ctx.restore();
+  }
+  function layout() {
+    const n = (scene.clientWidth || 1000) < 620;
+    narrow = n;
+    fs = fontScale(scene);
+    const resW = Math.max(70, fs * 3.6), pad = 6;
+    const sc = (scene.width - 2 * resW - 2 * pad) / L;
+    const labH = fs * 1.7, gap = fs * 0.6, stripH = H * sc, top = fs * 0.4;
+    const need = Math.ceil(top + 5 * (labH + stripH + gap));
+    if (scene.height !== need) scene.height = need;
+    return { resW, pad, sc, labH, gap, stripH, top, x0: resW + pad };
+  }
+  function drawScene() {
+    const g = layout(), ctx = sx, W = scene.width, Hc = scene.height;
+    const [th, tc] = [E.Th, E.Tc], span = Math.max(1e-6, th - tc);
+    ctx.clearRect(0, 0, W, Hc);
+    // hot and cold walls spanning all strips
+    ctx.fillStyle = heatColor(1); ctx.fillRect(0, 0, g.resW, Hc);
+    ctx.fillStyle = heatColor(0); ctx.fillRect(W - g.resW, 0, g.resW, Hc);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(1, 1, g.resW - 2, Hc - 2); ctx.strokeRect(W - g.resW + 1, 1, g.resW - 2, Hc - 2);
+    const tfs = Math.round(fs * 0.95);
+    tag(ctx, ['Hot', `${el('Th').value} K`], g.resW / 2, Hc / 2, tfs);
+    tag(ctx, ['Cold', `${el('Tc').value} K`], W - g.resW / 2, Hc / 2, tfs);
+
+    E.strips.forEach((s, k) => {
+      const info = INFO[s.id];
+      const yl = g.top + k * (g.labH + g.stripH + g.gap), y0 = yl + g.labH;
+      const X = x => g.x0 + x * g.sc, Y = y => y0 + y * g.sc;
+      // label row
+      ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = `700 ${fs}px system-ui, sans-serif`;
+      const nm = info.name; ctx.fillText(nm, g.x0, yl + g.labH / 2);
+      const w1 = ctx.measureText(nm + '  ').width;
+      ctx.font = `500 ${fs}px system-ui, sans-serif`; ctx.fillStyle = MUTED;
+      ctx.fillText(narrow ? `${info.short} · k ${info.k}` : `${info.how} · real k ${info.k} W/(m·K)`, g.x0 + w1, yl + g.labH / 2);
+      // strip box
+      ctx.fillStyle = '#f1f3f6'; ctx.fillRect(X(0), Y(0), L * g.sc, H * g.sc);
+      ctx.strokeStyle = '#7d8693'; ctx.lineWidth = 1.5; ctx.strokeRect(X(0), Y(0), L * g.sc, H * g.sc);
+      ctx.save(); ctx.beginPath(); ctx.rect(X(0) - 2, Y(0) - 2, L * g.sc + 4, H * g.sc + 4); ctx.clip();
+      const frac = e => (e - tc) / span;
+      if (s.lat) {
+        const a = s.lat;
+        if (s.id !== 'cu') {
+          ctx.strokeStyle = '#a9b0ba'; ctx.lineWidth = Math.max(1, g.sc * 0.05);
+          ctx.beginPath();
+          for (const [i, j] of a.bonds) { ctx.moveTo(X(a.x[i]), Y(a.y[i])); ctx.lineTo(X(a.x[j]), Y(a.y[j])); }
+          ctx.stroke();
+        }
+        const r = g.sc * (s.id === 'cu' ? 0.36 : 0.26);
+        ctx.lineWidth = 1;
+        for (let i = 0; i < a.x.length; i++) {
+          ctx.beginPath(); ctx.arc(X(a.x[i]), Y(a.y[i]), r * (s.id === 'gl' ? 0.8 + 0.25 * a.m[i] : 1), 0, 7);
+          ctx.fillStyle = heatColor(frac(a.E[i])); ctx.fill(); ctx.strokeStyle = INK; ctx.stroke();
+        }
+        if (s.el) {
+          const re = Math.max(2.5, g.sc * 0.12);
+          for (let i = 0; i < s.el.x.length; i++) {
+            ctx.beginPath(); ctx.arc(X(s.el.x[i]), Y(s.el.y[i]), re, 0, 7);
+            ctx.fillStyle = heatColor(frac(s.el.e[i])); ctx.fill(); ctx.strokeStyle = INK; ctx.stroke();
+          }
+        }
+      } else {
+        const f = s.fl, r = g.sc * (s.id === 'wa' ? 0.46 : 0.25);
+        ctx.lineWidth = 1;
+        for (let i = 0; i < f.x.length; i++) {
+          ctx.beginPath(); ctx.arc(X(f.x[i]), Y(f.y[i]), r, 0, 7);
+          ctx.fillStyle = heatColor(frac(f.E[i])); ctx.fill(); ctx.strokeStyle = INK; ctx.stroke();
+        }
+      }
+      // followed particle
+      if (el('follow').checked) {
+        const p = pos(s), tr = trails[s.id];
+        if (tr && tr.length > 1) {
+          ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath();
+          tr.forEach((q, i) => { const px = X(q[0]), py = Y(q[1]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+          ctx.lineTo(X(p[0]), Y(p[1])); ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), g.sc * 0.55, 0, 7); ctx.stroke();
+      }
+      ctx.restore();
+    });
+  }
+
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag;
+  }
+  function drawGraph() {
+    const ctx = gx, n = (graph.clientWidth || 1000) < 620;
+    const want = n ? 680 : 380; if (graph.height !== want) graph.height = want;
+    const W = graph.width, Hh = graph.height, f = fontScale(graph);
+    ctx.clearRect(0, 0, W, Hh);
+    const last = hist[hist.length - 1];
+    const show = E.strips.map(s => !el('zoom').checked || ['gl', 'wa', 'air'].includes(s.id));
+    const vis = h => h.q.filter((_, k) => show[k]);
+    const tMaxD = Math.max(20, last.t), qMaxD = Math.max(5, ...hist.flatMap(vis));
+    const tS = niceStep(tMaxD, 6), tMax = Math.ceil(tMaxD * 1.001 / tS) * tS;
+    const qS = niceStep(qMaxD, 5), qMax = Math.ceil(qMaxD * 1.02 / qS) * qS;
+    const qMin = Math.min(0, Math.floor(Math.min(...hist.flatMap(vis)) / qS) * qS);
+    const padL = f * 4.4, padR = f * 5.2, padT = f * 1, padB = f * 3.2;
+    const X = t => padL + t / tMax * (W - padL - padR), Y = q => Hh - padB - (q - qMin) / (qMax - qMin) * (Hh - padT - padB);
+    ctx.font = f + 'px system-ui, sans-serif'; ctx.fillStyle = MUTED;
+    for (let t = 0; t <= tMax + 1e-9; t += tS) {
+      ctx.strokeStyle = t === 0 ? '#6B7480' : '#e6e9ee'; ctx.lineWidth = t === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(X(t), Y(qMin)); ctx.lineTo(X(t), Y(qMax)); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(+t.toFixed(6), X(t), Y(qMin) + f * 0.4);
+    }
+    for (let q = qMin; q <= qMax + 1e-9; q += qS) {
+      ctx.strokeStyle = q === 0 ? '#6B7480' : '#e6e9ee'; ctx.lineWidth = q === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(X(0), Y(q)); ctx.lineTo(X(tMax), Y(q)); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(+q.toFixed(6), X(0) - 8, Y(q));
+    }
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('time t (τ)', X(tMax / 2), Hh - 2);
+    ctx.save(); ctx.translate(f * 1.1, Y((qMax + qMin) / 2)); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle';
+    ctx.fillText(n ? 'Q (ε)' : 'heat delivered to cold wall Q (ε)', 0, 0); ctx.restore();
+    const ends = [];
+    E.strips.forEach((s, k) => {
+      if (!show[k]) return;
+      const info = INFO[s.id];
+      ctx.strokeStyle = info.color; ctx.lineWidth = 3; ctx.setLineDash(info.dash); ctx.lineJoin = 'round';
+      ctx.beginPath(); hist.forEach((h, i) => { const px = X(h.t), py = Y(h.q[k]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+      ctx.stroke(); ctx.setLineDash([]);
+      ends.push({ y: Y(last.q[k]), name: info.name, x: X(last.t) });
+    });
+    // end labels, spread so they don't overlap
+    ends.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < f * 1.1) ends[i].y = ends[i - 1].y + f * 1.1;
+    ctx.font = `600 ${Math.round(f * 0.9)}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (const e of ends) { ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.strokeText(e.name, e.x + 6, e.y);
+      ctx.fillStyle = INK; ctx.fillText(e.name, e.x + 6, e.y); }
+  }
+  // graph key with line styles
+  el('gkey').innerHTML = E.strips.map(s => { const i = INFO[s.id];
+    return `<li><svg width="34" height="10" aria-hidden="true"><line x1="1" y1="5" x2="33" y2="5" stroke="${i.color}" stroke-width="3" stroke-dasharray="${i.dash.join(' ')}"/></svg>${i.name}</li>`; }).join('');
+
+  // ---- text alternatives ----
+  function ranking() {
+    const r = rates(); if (!r) return null;
+    return E.strips.map((s, k) => ({ id: s.id, name: INFO[s.id].name, rate: r[k] })).sort((a, b) => b.rate - a.rate);
+  }
+  const REAL = ['dia', 'cu', 'gl', 'wa', 'air'];
+  function describe() {
+    const rk = ranking();
+    let s = `Hot wall ${el('Th').value} K, cold wall ${el('Tc').value} K, t = ${fmtT(E.time)}. `;
+    if (E.Th <= E.Tc) s += 'The walls are at the same temperature, so no net heat flows; the graph lines only wander up and down by chance. ';
+    if (E.Th <= E.Tc) {}
+    else if (!rk) s += 'All five strips started at the cold temperature; heat-flow rates appear after 20 τ. ';
+    else {
+      s += 'Heat reaching the cold wall per unit time, fastest first: ' + rk.map(x => `${x.name} ${sig(x.rate)} ε/τ`).join(', ') + '. ';
+      const match = rk.every((x, i) => x.id === REAL[i]);
+      if (el('zoom').checked) s += 'The graph currently shows only glass, water and air, rescaled. ';
+      s += match ? 'This is the same order as the real conductivities: diamond ≈ 2000, copper 390, glass 0.84, water 0.6 and air 0.023 W/(m·K).'
+                 : 'The ranking is still settling (or the temperature difference is small); the real order is diamond, copper, glass, water, air.';
+    }
+    el('desc').textContent = s;
+  }
+  function fillTables() {
+    const r = rates(), rk = ranking();
+    el('readBody').innerHTML = E.strips.map((s, k) =>
+      `<tr><th scope="row">${INFO[s.id].name}${s.id === 'air' ? '*' : ''}</th><td>${toK(s.Tmid)} K</td><td>${r ? sig(r[k]) + ' ε/τ' : '—'}</td></tr>`).join('');
+    el('timeNote').textContent = `Time t = ${fmtT(E.time)}. Rates are averaged over the last two-thirds of the run (the first third is warm-up).`;
+    el('dataCaption').textContent = `Hot wall ${el('Th').value} K, cold wall ${el('Tc').value} K, at t = ${fmtT(E.time)}. Heat-flow rate is the slope of the graph over the last two-thirds of the run.`;
+    el('dataBody').innerHTML = E.strips.map((s, k) => {
+      const i = INFO[s.id], rank = rk ? rk.findIndex(x => x.id === s.id) + 1 : '—';
+      return `<tr><td>${i.name}</td><td>${i.how}</td><td>${i.k}</td><td>${r ? sig(r[k]) : '—'}</td><td>${sig(s.qout)}</td><td>${toK(s.Tmid)}</td><td>${rank}</td></tr>`;
+    }).join('');
+  }
+  function download(name, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function announce(msg) { el('status').textContent = ''; setTimeout(() => { el('status').textContent = msg; }, 50); }
+  const spokenT = s => fmtT(s).replace('τ', 'time units');
+  function spokenRank() {
+    if (E.Th <= E.Tc) return 'The walls are at the same temperature, so there is no net heat flow.';
+    const rk = ranking(); if (!rk) return 'Heat-flow rates appear after 20 time units.';
+    return 'Fastest heat flow first: ' + rk.map(x => x.name).join(', ') + '.';
+  }
+
+  // ---- loop ----
+  function render() { drawScene(); drawGraph(); }
+  function frame(now) {
+    if (!running) { lastFrame = null; return; }
+    if (lastFrame !== null) {
+      const real = Math.min(0.05, (now - lastFrame) / 1000);
+      advance(real * +el('rate').value, 14);
+      if (now - lastTable > 700) { fillTables(); describe(); lastTable = now; }
+      if (!settledAnnounced && E.time >= 100 && E.Th > E.Tc) {
+        settledAnnounced = true; announce('Heat flow has settled. ' + spokenRank());
+      }
+    }
+    lastFrame = now; render();
+    requestAnimationFrame(frame);
+  }
+  function updateButtons() { el('play').textContent = running ? 'Pause' : (E.time > 0 ? 'Resume' : 'Play'); }
+  function syncLabels() {
+    const th = +el('Th').value, tc = +el('Tc').value;
+    el('ThOut').textContent = `${th} K`; el('TcOut').textContent = `${tc} K`;
+    el('Th').setAttribute('aria-valuetext', `${th} kelvin`); el('Tc').setAttribute('aria-valuetext', `${tc} kelvin`);
+  }
+
+  ['Th', 'Tc'].forEach(id => el(id).addEventListener('input', () => {
+    syncLabels(); const [th, tc] = temps(); E.setT(th, tc); render(); describe(); fillTables();
+  }));
+  el('play').addEventListener('click', () => {
+    running = !running; updateButtons();
+    if (running) { announce(`${E.time > 0 ? 'Resumed' : 'Running'} at ${el('rate').value} times speed.`); requestAnimationFrame(frame); }
+    else { fillTables(); describe(); announce(`Paused at t = ${spokenT(E.time)}. ${spokenRank()}`); }
+  });
+  el('step').addEventListener('click', () => {
+    running = false; advance(1, 0); updateButtons(); render(); fillTables(); describe();
+    announce(`t = ${spokenT(E.time)}.`);
+  });
+  el('reset').addEventListener('click', () => {
+    running = false; resetSim(); updateButtons(); render(); fillTables(); describe();
+    announce('Reset. All five strips are at the cold temperature; the graph is cleared.');
+  });
+  el('pulse').addEventListener('click', () => {
+    E.pulse(1.5 * E.Th);
+    render();
+    announce('Heat pulse sent into the hot end of all five strips.' + (running ? '' : ' Press Play to watch it travel.'));
+  });
+  el('follow').addEventListener('change', render);
+  el('zoom').addEventListener('change', () => { render(); describe(); });
+  el('csv').addEventListener('click', () => {
+    const r = rates(), rk = ranking();
+    const head = 'substance,mechanism,real k (W/(m K)),model heat-flow rate (eps/tau),heat delivered Q (eps),middle temperature (K),model rank,hot wall (K),cold wall (K),t (tau)';
+    download('molecular_conduction_results.csv', head + '\n' + E.strips.map((s, k) => {
+      const i = INFO[s.id];
+      return [i.name, `"${i.how}"`, i.k.replace('≈ ', ''), r ? +r[k].toPrecision(4) : '', +s.qout.toPrecision(5), toK(s.Tmid),
+        rk ? rk.findIndex(x => x.id === s.id) + 1 : '', el('Th').value, el('Tc').value, +E.time.toFixed(2)].join(',');
+    }).join('\n'));
+  });
+  el('csv2').addEventListener('click', () => {
+    download('molecular_conduction_Q_vs_t.csv', 't (tau),' + E.strips.map(s => `Q ${INFO[s.id].name} (eps)`).join(',') + '\n' +
+      hist.map(h => [+h.t.toFixed(2), ...h.q.map(q => +q.toPrecision(5))].join(',')).join('\n'));
+  });
+  window.addEventListener('resize', render);
+
+  syncLabels(); resetSim(); updateButtons(); render(); fillTables(); describe();
+  window.__mol = { E, rates, ranking, advance: t => { advance(t, 0); render(); fillTables(); describe(); } };
+})();
+</script>
+</body>
+</html>
