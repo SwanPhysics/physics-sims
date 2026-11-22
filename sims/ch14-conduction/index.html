@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heat Conduction</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2430; --muted: #5b6575; --line: #dde2e8;
+    --plot: #fbfcfd;
+    /* Graphic colors: each is at least 3:1 against the plot background (WCAG 1.4.11) */
+    --accent: #0072B2;          /* blue       – current run line, accents   5.05:1 */
+    --flow: #D55E00;            /* vermillion – heat-flow arrow             3.76:1 */
+    --ghost: #6B7480;           /* gray dashed – earlier runs               4.61:1 */
+    --axis: #6B7480;            /* axes                                     4.61:1 */
+    --focus: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+             clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;
+         padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .top a:hover { text-decoration: underline; }
+  .top h1 { margin: 0; font-size: 1.4rem; }
+  .top .ref { color: var(--muted); font-size: .9rem; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--plot); }
+  #graph { margin-top: 14px; }
+  .formula { margin: 10px 0 0; font-size: 1.05rem; overflow-wrap: anywhere; }
+  .formula .eq { font-weight: 600; }
+  .summary { margin: 8px 0 0; font-size: .95rem; }
+  .ctrl { margin-bottom: 14px; }
+  .ctrl .lab { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: .95rem; }
+  .ctrl output { font-variant-numeric: tabular-nums; color: var(--accent); text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select { font: inherit; padding: 5px 6px; width: 100%; margin-top: 4px; border: 1px solid #8a93a0; border-radius: 6px; background: #fff; color: var(--ink); }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid #8a93a0;
+           background: #eef2f6; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 6.5em; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  :is(a, button, input, select, summary, .scroll):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .checks label { display: block; margin: 4px 0; font-size: .95rem; }
+  .checks select { width: auto; margin-left: 4px; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.readouts { width: 100%; margin-top: 8px; }
+  table.readouts th, table.readouts td { padding: 5px 2px; border-top: 1px solid var(--line); font-size: 1rem; }
+  table.readouts th { text-align: left; font-weight: 400; }
+  table.readouts td { text-align: right; font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); margin-top: 8px;
+            list-style: none; padding: 0; }
+  .legend svg { vertical-align: middle; margin-right: 5px; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .scroll { overflow-x: auto; max-width: 100%; }
+  table.data { margin-top: 8px; }
+  table.data th, table.data td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.data th:nth-child(2), table.data td:nth-child(2) { text-align: left; }
+  table.data caption { text-align: left; color: var(--muted); font-size: .9rem; padding-bottom: 4px; }
+  .note { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a href="../../">← All simulations</a>
+  <h1>Heat Conduction</h1>
+  <span class="ref">OpenStax College Physics 2e, Section 14.5</span>
+</header>
+
+<main class="layout">
+  <section class="panel" aria-labelledby="sceneHeading">
+    <h2 id="sceneHeading" class="sr-only">Conduction diagram and heat graph</h2>
+    <canvas id="scene" width="1000" height="470" role="img"
+            aria-label="Diagram: object 2 on the left and object 1 on the right are joined by a slab of conducting material of face area A and thickness d. Small markers move through the slab from the hotter object to the colder one. A text summary follows the graphs."></canvas>
+
+    <p class="formula" aria-live="off">
+      <span class="eq">Q/t = kA(T<sub>2</sub> − T<sub>1</sub>)/d</span>
+      <span id="subst"></span>
+    </p>
+
+    <canvas id="graph" width="1000" height="380" role="img"
+            aria-label="Graph of total heat transferred Q versus time t for the current run and earlier runs. The text summary and the runs table below give the same information."></canvas>
+
+    <ul class="legend" aria-label="Graph key">
+      <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#0072B2" stroke-width="3"/></svg>Current run (solid)</li>
+      <li><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#6B7480" stroke-width="2" stroke-dasharray="6 3"/></svg>Earlier runs (dashed, labeled with run number)</li>
+      <li><svg width="26" height="12" aria-hidden="true"><circle cx="13" cy="6" r="4.5" fill="#fff" stroke="#1d2430" stroke-width="1.5"/></svg>Moving markers: heat flowing through the slab</li>
+    </ul>
+
+    <p class="summary"><strong>Graph summary:</strong> <span id="desc"></span></p>
+
+    <details id="dataBox">
+      <summary>Runs table (one row per run)</summary>
+      <div class="scroll" tabindex="0" role="region" aria-label="Runs table, scrolls sideways">
+        <table class="data" id="dataTable">
+          <caption>Each change of settings after the clock has started begins a new run. Q/t = kA(T₂ − T₁)/d; Q = (Q/t)·t.</caption>
+          <thead>
+            <tr><th scope="col">Run</th><th scope="col">Material</th><th scope="col">k (W/(m·K))</th>
+                <th scope="col">A (m²)</th><th scope="col">d (m)</th><th scope="col">T<sub>2</sub> (°C)</th>
+                <th scope="col">T<sub>1</sub> (°C)</th><th scope="col">Q/t (W)</th><th scope="col">t (s)</th><th scope="col">Q (J)</th></tr>
+          </thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+      <p><button id="csv" type="button">Download runs as CSV</button></p>
+      <p class="note">Positive Q/t means heat flows from object 2 (left) to object 1 (right); negative means right to left.</p>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+    <div class="ctrl">
+      <div class="lab"><label for="T2">Left object temperature T<sub>2</sub></label><output id="T2Out" for="T2" aria-hidden="true"></output></div>
+      <input id="T2" type="range" min="-50" max="150" step="1" value="80">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="T1">Right object temperature T<sub>1</sub></label><output id="T1Out" for="T1" aria-hidden="true"></output></div>
+      <input id="T1" type="range" min="-50" max="150" step="1" value="20">
+    </div>
+    <div class="ctrl">
+      <label for="mat" style="font-weight:600;font-size:.95rem">Conducting substance (thermal conductivity k)</label>
+      <select id="mat"></select>
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="area">Face area A</label><output id="areaOut" for="area" aria-hidden="true"></output></div>
+      <input id="area" type="range" min="0.01" max="2" step="0.01" value="1">
+    </div>
+    <div class="ctrl">
+      <div class="lab"><label for="thick">Thickness d</label><output id="thickOut" for="thick" aria-hidden="true"></output></div>
+      <input id="thick" type="range" min="1" max="200" step="1" value="5">
+    </div>
+
+    <div class="buttons">
+      <button id="play" type="button" class="primary">Play</button>
+      <button id="step" type="button" aria-describedby="stepHint">Step</button>
+      <button id="reset" type="button">Reset</button>
+    </div>
+    <p id="stepHint" class="sr-only">Advances the clock by 1 second.</p>
+
+    <div class="checks">
+      <label>Playback speed
+        <select id="rate">
+          <option value="1">1× (real time)</option>
+          <option value="5">5×</option>
+          <option value="20">20×</option>
+        </select>
+      </label>
+    </div>
+
+    <table class="readouts">
+      <caption class="sr-only">Current values</caption>
+      <tr><th scope="row">Temperature difference T<sub>2</sub> − T<sub>1</sub></th><td id="rDT"></td></tr>
+      <tr><th scope="row">Conductivity k</th><td id="rK"></td></tr>
+      <tr><th scope="row">Rate of heat transfer Q/t</th><td id="rP"></td></tr>
+      <tr><th scope="row">Direction</th><td id="rDir"></td></tr>
+      <tr><th scope="row">Time t</th><td id="rT"></td></tr>
+      <tr><th scope="row">Heat transferred Q</th><td id="rQ"></td></tr>
+    </table>
+    <p class="note">The two objects are large enough that their temperatures stay constant, so the rate Q/t is steady. Conductivities from OpenStax Table 14.3. The diagram is not to scale: the face height grows with √A and the slab width with d on a compressed scale.</p>
+
+    <!-- Screen-reader announcements: only at events (play, pause, step, reset, settings done), never every frame -->
+    <div id="status" role="status" class="sr-only"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const el = id => document.getElementById(id);
+  const scene = el('scene'), sx = scene.getContext('2d');
+  const graph = el('graph'), gx = graph.getContext('2d');
+  const INK = '#1d2430', MUTED = '#5b6575', PLOT = '#fbfcfd';
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // OpenStax College Physics 2e, Table 14.3 (W/(m·K))
+  const MATERIALS = [
+    ['Silver', 420], ['Copper', 390], ['Gold', 318], ['Aluminum', 220], ['Steel (iron)', 80],
+    ['Stainless steel', 14], ['Ice', 2.2], ['Glass (average)', 0.84], ['Concrete brick', 0.84],
+    ['Water', 0.6], ['Fatty tissue (no blood)', 0.2], ['Plasterboard', 0.16], ['Snow (dry)', 0.10],
+    ['Cork', 0.042], ['Glass wool', 0.042], ['Wool', 0.04], ['Down feathers', 0.025],
+    ['Air', 0.023], ['Styrofoam', 0.010]
+  ];
+  MATERIALS.forEach(([n, k], i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = `${n} — ${k} W/(m·K)`;
+    el('mat').appendChild(o);
+  });
+  el('mat').value = 7; // glass
+
+  // ---- Formatting --------------------------------------------------------
+  const num = x => {                       // 3 significant figures
+    if (!isFinite(x)) return '—';
+    if (Math.abs(x) < 1e-12) return '0';
+    const a = Math.abs(x);
+    if (a >= 1000) return x.toFixed(0);
+    return (+x.toPrecision(3)).toString() === x.toPrecision(3) ? x.toPrecision(3) : x.toPrecision(3);
+  };
+  const PREF = { '-6': ['µ', 'micro'], '-3': ['m', 'milli'], '0': ['', ''], '3': ['k', 'kilo'],
+                 '6': ['M', 'mega'], '9': ['G', 'giga'], '12': ['T', 'tera'] };
+  const UNIT_SPOKEN = { W: 'watts', J: 'joules' };
+  function si(x, unit) {
+    if (x === 0) return { text: '0 ' + unit, spoken: '0 ' + UNIT_SPOKEN[unit], e: 0 };
+    let e = Math.floor(Math.log10(Math.abs(x)) / 3) * 3;
+    e = Math.max(-6, Math.min(12, e));
+    let v = +(x / Math.pow(10, e)).toPrecision(3);
+    if (Math.abs(v) >= 1000 && e < 12) { e += 3; v = +(x / Math.pow(10, e)).toPrecision(3); }
+    const s = Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3);
+    return { text: `${s} ${PREF[e][0]}${unit}`, spoken: `${s} ${PREF[e][1]}${UNIT_SPOKEN[unit]}`, e };
+  }
+  const sci = x => {                       // table: 3 s.f., scientific for very large/small
+    if (x === 0) return '0';
+    const a = Math.abs(x);
+    if (a >= 1e3 || a < 1e-2) {
+      const [m, ex] = x.toExponential(2).split('e');
+      return `${m} × 10${(+ex).toString().replace(/-/g, '⁻').replace(/\d/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d])}`;
+    }
+    return a >= 100 ? x.toFixed(0) : x.toPrecision(3);
+  };
+  const kText = k => `${k} W/(m·K)`;
+  const tText = s => (s >= 1000 ? s.toFixed(0) : s < 10 ? s.toFixed(1) : s.toPrecision(3)) + ' s';
+  const tSpoken = s => tText(s).replace(' s', ' seconds');
+  const degSpoken = T => `${T} degrees Celsius`;
+
+  // ---- State -------------------------------------------------------------
+  let runs = [];       // {n, mat, k, A, dmm, T2, T1, P, t}
+  let running = false, lastFrame = null, lastTable = 0;
+  let dots = [], emitAcc = 0;
+
+  function readSettings() {
+    const [mat, k] = MATERIALS[+el('mat').value];
+    const A = +el('area').value, dmm = +el('thick').value;
+    const T2 = +el('T2').value, T1 = +el('T1').value;
+    const P = k * A * (T2 - T1) / (dmm / 1000);   // signed: + means left → right
+    return { mat, k, A, dmm, T2, T1, P };
+  }
+  const cur = () => runs[runs.length - 1];
+
+  function newRun() {
+    runs.push(Object.assign({ n: runs.length + 1, t: 0 }, readSettings()));
+  }
+
+  // ---- Scene drawing -------------------------------------------------------
+  let fs = 15;
+  function fontScale(cv) {
+    return Math.round(Math.max(15, Math.min(34, 15 * cv.width / (cv.clientWidth || cv.width))));
+  }
+  // Temperature → fill color (blue cold, near-white mild, red hot). Decorative; values are always in text.
+  function tColor(T) {
+    const stops = [[-50, [33, 102, 172]], [20, [240, 240, 240]], [150, [178, 24, 43]]];
+    let i = T <= 20 ? 0 : 1;
+    const [ta, ca] = stops[i], [tb, cb] = stops[i + 1];
+    const f = Math.max(0, Math.min(1, (T - ta) / (tb - ta)));
+    return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * f)).join(',')})`;
+  }
+  function shade(rgb, f) {
+    const m = rgb.match(/\d+/g).map(Number).map(c => Math.round(c * f));
+    return `rgb(${m.join(',')})`;
+  }
+  function poly(ctx, pts, fill, stroke) {
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  // Label in dark ink on a white box (meets 4.5:1 on any fill)
+  function tag(ctx, lines, x, y, size, bold) {
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fonts = lines.map((_, i) => `${(bold && i === 0) ? '700' : '500'} ${size}px system-ui, sans-serif`);
+    let w = 0;
+    lines.forEach((l, i) => { ctx.font = fonts[i]; w = Math.max(w, ctx.measureText(l).width); });
+    const lh = size * 1.25, h = lh * lines.length + size * 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    const bx = x - w / 2 - size * 0.45, by = y - h / 2;
+    ctx.beginPath(); ctx.rect(bx, by, w + size * 0.9, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK;
+    lines.forEach((l, i) => { ctx.font = fonts[i]; ctx.fillText(l, x, by + size * 0.25 + lh * (i + 0.5)); });
+    ctx.restore();
+  }
+  function arrow(ctx, x1, y1, x2, y2, color, w) {
+    const a = Math.atan2(y2 - y1, x2 - x1), hd = w * 4;
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - hd * 0.8 * Math.cos(a), y2 - hd * 0.8 * Math.sin(a)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hd * Math.cos(a - 0.45), y2 - hd * Math.sin(a - 0.45));
+    ctx.lineTo(x2 - hd * Math.cos(a + 0.45), y2 - hd * Math.sin(a + 0.45));
+    ctx.closePath(); ctx.fill();
+  }
+
+  let geo;  // slab geometry in canvas pixels, used by the markers
+  function drawScene() {
+    const r = cur(), ctx = sx, W = scene.width;
+    fs = fontScale(scene);
+    ctx.clearRect(0, 0, W, scene.height);
+    const K = 0.35, D = 230, BH = 280, BW = Math.min(230, 150 + fs * 3);
+    const wd = 26 + 234 * Math.log(r.dmm) / Math.log(200);   // compressed thickness scale
+    const s = 46 + 184 * Math.sqrt(r.A / 2);                   // face side ∝ √A
+    const totalW = 2 * BW + wd + D * K;
+    const x0 = (W - totalW) / 2 + BW, x1 = x0 + wd;
+    const cy = (narrow ? 60 + fs * 4 : 70 + fs * 2) + D * K + BH / 2 - 10;
+    const P = (x, y, z) => [x + z * K, y - z * K];
+    const yT = cy - BH / 2, yB = cy + BH / 2;
+    // grow the canvas so the heat-flow arrow and its label always fit
+    const lfs0 = Math.round(fs * 1.05);
+    const need = Math.ceil((narrow ? yB + lfs0 * 6.2 : yB + fs * 1.6) + fs * 2.4);
+    if (scene.height !== need) scene.height = need;
+
+    function box(xa, xb, ya, yb, za, zb, fill, faces) {
+      const front = [P(xa, ya, za), P(xb, ya, za), P(xb, yb, za), P(xa, yb, za)];
+      const top = [P(xa, ya, za), P(xb, ya, za), P(xb, ya, zb), P(xa, ya, zb)];
+      const right = [P(xb, ya, za), P(xb, ya, zb), P(xb, yb, zb), P(xb, yb, za)];
+      if (faces.includes('right')) poly(ctx, right, shade(fill, 0.78), INK);
+      if (faces.includes('top')) poly(ctx, top, shade(fill, 0.9), INK);
+      if (faces.includes('front')) poly(ctx, front, fill, INK);
+    }
+
+    const cL = tColor(r.T2), cR = tColor(r.T1);
+    box(x0 - BW, x0, yT, yB, 0, D, cL, ['front', 'top', 'right']);
+    // slab, centered in depth and height on the blocks
+    const za = (D - s) / 2, zb = (D + s) / 2, ya = cy - s / 2, yb = cy + s / 2;
+    const fl = P(x0, ya, za), fr = P(x1, yb, za);
+    const grad = ctx.createLinearGradient(fl[0], 0, fr[0], 0);
+    grad.addColorStop(0, cL); grad.addColorStop(1, cR);
+    poly(ctx, [P(x0, ya, za), P(x1, ya, za), P(x1, ya, zb), P(x0, ya, zb)], '#c9ced6', INK);
+    poly(ctx, [P(x0, ya, za), P(x1, ya, za), P(x1, yb, za), P(x0, yb, za)], grad, INK);
+    box(x1, x1 + BW, yT, yB, 0, D, cR, ['front', 'top', 'right']);
+    geo = { x: fl[0], y: fl[1], w: wd, h: s };
+
+    // block labels
+    const lab = (T, name, other) => [name, `T = ${T} °C`, T > other ? 'hotter' : T < other ? 'colder' : 'same temperature'];
+    const lfs = Math.round(fs * 1.05);
+    const labY = narrow ? yB + lfs * 2.6 : cy + BH * 0.28;
+    tag(ctx, lab(r.T2, 'Object 2', r.T1).map((l, i) => i === 1 ? l.replace('T =', 'T₂ =') : l), x0 - BW / 2, labY, lfs, true);
+    tag(ctx, lab(r.T1, 'Object 1', r.T2).map((l, i) => i === 1 ? l.replace('T =', 'T₁ =') : l), x1 + BW / 2, labY, lfs, true);
+
+    // slab label with leader line from the slab top face
+    const topMid = P((x0 + x1) / 2, ya, D / 2);
+    const ly = fs * 1.6;
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(topMid[0], topMid[1]); ctx.lineTo(topMid[0], ly + fs * 1.3); ctx.stroke();
+    tag(ctx, narrow ? [`Slab: ${r.mat}`, `k = ${kText(r.k)}`, `A = ${r.A.toFixed(2)} m², d = ${(r.dmm / 1000)} m`]
+                    : [`Slab: ${r.mat}, k = ${kText(r.k)}`, `face area A = ${r.A.toFixed(2)} m², thickness d = ${(r.dmm / 1000)} m`],
+        W / 2, narrow ? ly + fs * 1.4 : ly + fs * 0.2, fs, true);
+
+    // d bracket below the slab, between the blocks
+    const by = fr[1] + fs * 0.8;
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(fl[0], by - 5); ctx.lineTo(fl[0], by + 5); ctx.moveTo(fl[0], by); ctx.lineTo(fr[0], by);
+    ctx.moveTo(fr[0], by - 5); ctx.lineTo(fr[0], by + 5); ctx.stroke();
+    ctx.fillStyle = INK; ctx.font = `italic 600 ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('d', (fl[0] + fr[0]) / 2, by + 4);
+
+    // heat-flow arrow under the blocks
+    const ay = narrow ? yB + lfs * 6.2 : yB + fs * 1.6;
+    const ax1 = x0 - BW / 2, ax2 = x1 + BW / 2;
+    if (r.P !== 0) {
+      const ltr = r.P > 0;
+      arrow(ctx, ltr ? ax1 : ax2, ay, ltr ? ax2 : ax1, ay, css('--flow'), 4);
+      ctx.fillStyle = INK; ctx.font = `600 ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(narrow ? `Heat flow: Q/t = ${si(Math.abs(r.P), 'W').text}` : `Heat flow ${ltr ? 'left → right' : 'right → left'}: Q/t = ${si(Math.abs(r.P), 'W').text}`, W / 2, ay + fs * 0.6);
+    } else {
+      ctx.fillStyle = INK; ctx.font = `600 ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(narrow ? 'No net heat flow: T₁ = T₂' : 'No net heat flow: T₁ = T₂ (thermal equilibrium)', W / 2, ay - fs * 0.4);
+    }
+
+    // markers moving through the slab
+    ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.fillStyle = '#fff';
+    const rad = Math.max(4, fs * 0.3);
+    for (const d of dots) {
+      const x = geo.x + d.u * geo.w, y = geo.y + d.v * geo.h;
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+  }
+
+  // Marker emission rate grows with log(rate): 1e-3 W → ~1 per second, 1e8 W → 30 per second
+  function emitRate(P) {
+    const a = Math.abs(P); if (a === 0) return 0;
+    const lvl = Math.max(0, Math.min(1, (Math.log10(a) + 3) / 11));
+    return 1 + 29 * lvl;
+  }
+  function moveDots(realDt) {
+    const r = cur(), dir = Math.sign(r.P);
+    if (dir === 0) { dots = []; return; }
+    emitAcc += emitRate(r.P) * realDt;
+    while (emitAcc >= 1) { emitAcc -= 1; dots.push({ u: dir > 0 ? 0 : 1, v: 0.08 + 0.84 * Math.random(), sp: 0.45 + 0.2 * Math.random() }); }
+    for (const d of dots) d.u += dir * d.sp * realDt;
+    dots = dots.filter(d => d.u >= 0 && d.u <= 1);
+  }
+
+  // ---- Graph -------------------------------------------------------------
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag;
+  }
+  const DASHES = [[10, 6], [3, 5], [14, 5, 3, 5], [6, 4], [2, 3]];
+  function drawGraph() {
+    const ctx = gx, W = graph.width, H = graph.height;
+    const f = fontScale(graph);
+    ctx.clearRect(0, 0, W, H);
+    const shown = runs.slice(-6);
+    const tMaxData = Math.max(10, ...shown.map(r => r.t));
+    const qMaxData = Math.max(...shown.map(r => Math.abs(r.P) * Math.max(r.t, 0)), 0);
+    const tStep = niceStep(tMaxData, 6), tMax = Math.ceil(tMaxData * 1.02 / tStep) * tStep;
+    // choose a prefix for the Q axis
+    const ref = qMaxData > 0 ? qMaxData : Math.max(...shown.map(r => Math.abs(r.P))) * 10 || 1;
+    const e = si(ref, 'J').e, scale = Math.pow(10, e), pre = PREF[e][0];
+    const qSpan = ref / scale, qStep = niceStep(qSpan, 5), qMax = Math.ceil(qSpan * 1.02 / qStep) * qStep;
+    const padL = f * 4.6, padR = f * 4.2, padT = f * 1.2, padB = f * 3.2;
+    const X = t => padL + t / tMax * (W - padL - padR);
+    const Y = q => H - padB - q / qMax * (H - padT - padB);
+
+    ctx.font = f + 'px system-ui, sans-serif'; ctx.fillStyle = MUTED;
+    const dec = v => +v.toFixed(6);
+    for (let t = 0; t <= tMax + 1e-9; t += tStep) {
+      ctx.strokeStyle = t === 0 ? css('--axis') : '#e6e9ee'; ctx.lineWidth = t === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(X(t), Y(0)); ctx.lineTo(X(t), Y(qMax)); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(dec(t), X(t), Y(0) + f * 0.4);
+    }
+    for (let q = 0; q <= qMax + 1e-9; q += qStep) {
+      ctx.strokeStyle = q === 0 ? css('--axis') : '#e6e9ee'; ctx.lineWidth = q === 0 ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(X(0), Y(q)); ctx.lineTo(X(tMax), Y(q)); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(dec(q), X(0) - 8, Y(q));
+    }
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('time t (s)', X(tMax / 2), H - 2);
+    ctx.save(); ctx.translate(f * 1.1, Y(qMax / 2)); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle';
+    ctx.fillText(narrow ? `|Q| (${pre}J)` : `heat transferred |Q| (${pre}J)`, 0, 0); ctx.restore();
+
+    const labelEnd = (r, x, y) => {
+      ctx.save(); ctx.font = `600 ${Math.round(f * 0.9)}px system-ui, sans-serif`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(251,252,253,0.95)'; ctx.fillStyle = INK;
+      const txt = 'Run ' + r.n;
+      ctx.strokeText(txt, x + 6, y); ctx.fillText(txt, x + 6, y); ctx.restore();
+    };
+    // earlier runs first, then current
+    const placed = [];
+    shown.forEach((r, i) => {
+      const isCur = r === cur();
+      if (r.t <= 0 && !isCur) return;
+      const q = Math.abs(r.P) * r.t / scale;
+      ctx.strokeStyle = isCur ? css('--accent') : css('--ghost');
+      ctx.lineWidth = isCur ? 3.5 : 2.5;
+      ctx.setLineDash(isCur ? [] : DASHES[i % DASHES.length]);
+      ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(r.t), Y(q)); ctx.stroke();
+      ctx.setLineDash([]);
+      if (r.t > 0) {
+        let y = Y(q);
+        while (placed.some(py => Math.abs(py - y) < f)) y -= f;   // avoid overlapping labels
+        placed.push(y);
+        labelEnd(r, X(r.t), y);
+      }
+    });
+  }
+
+  // ---- Text alternatives ---------------------------------------------------
+  function setupText(r) {
+    return `${r.mat} slab (k = ${kText(r.k)}), A = ${r.A.toFixed(2)} m², d = ${r.dmm / 1000} m; T₂ = ${r.T2} °C on the left, T₁ = ${r.T1} °C on the right.`;
+  }
+  function flowText(r) {
+    if (r.P === 0) return 'The temperatures are equal, so there is no net heat flow.';
+    return `Heat flows from the ${r.P > 0 ? 'left object (object 2)' : 'right object (object 1)'} to the colder ${r.P > 0 ? 'right object (object 1)' : 'left object (object 2)'} at Q/t = ${si(Math.abs(r.P), 'W').text}.`;
+  }
+  function describe() {
+    const r = cur();
+    const q = si(Math.abs(r.P) * r.t, 'J').text;
+    let s = `Run ${r.n}: ${setupText(r)} ${flowText(r)} `;
+    s += r.t > 0 ? `After t = ${tText(r.t)}, Q = ${q} has been transferred; on the graph Q rises in a straight line because the rate is constant.` : 'The clock is at 0 s.';
+    const prev = runs.filter(x => x !== r && x.t > 0);
+    if (prev.length) {
+      s += ' Earlier runs (dashed): ' + prev.slice(-5).map(p => `run ${p.n}, ${p.mat}, ${si(Math.abs(p.P), 'W').text}`).join('; ') + '.';
+    }
+    el('desc').textContent = s;
+  }
+  function announce(msg) {
+    el('status').textContent = '';
+    setTimeout(() => { el('status').textContent = msg; }, 50);
+  }
+  const spokenRate = r => r.P === 0 ? 'No net heat flow; the temperatures are equal.'
+    : `Heat flows ${r.P > 0 ? 'left to right' : 'right to left'} at ${si(Math.abs(r.P), 'W').spoken}.`;
+
+  function fillTable() {
+    el('dataBody').innerHTML = runs.map(r => {
+      const Q = r.P * r.t;
+      return `<tr><td>${r.n}${r === cur() ? ' (current)' : ''}</td><td>${r.mat}</td><td>${r.k}</td><td>${r.A.toFixed(2)}</td>` +
+        `<td>${r.dmm / 1000}</td><td>${r.T2}</td><td>${r.T1}</td><td>${sci(r.P)}</td><td>${tText(r.t).replace(' s', '')}</td><td>${sci(Q)}</td></tr>`;
+    }).join('');
+  }
+  function csvText() {
+    const head = 'run,material,k (W/(m K)),A (m^2),d (m),T2 (C),T1 (C),Q/t (W),t (s),Q (J)';
+    return head + '\n' + runs.map(r => [r.n, `"${r.mat}"`, r.k, r.A, r.dmm / 1000, r.T2, r.T1,
+      +r.P.toPrecision(6), +r.t.toFixed(3), +(r.P * r.t).toPrecision(6)].join(',')).join('\n');
+  }
+
+  // ---- Readouts & labels ---------------------------------------------------
+  function readouts() {
+    const r = cur();
+    const dT = r.T2 - r.T1;
+    el('rDT').textContent = `${dT} K`;
+    el('rK').textContent = kText(r.k);
+    el('rP').textContent = si(Math.abs(r.P), 'W').text;
+    el('rDir').textContent = r.P > 0 ? 'left → right' : r.P < 0 ? 'right → left' : 'none';
+    el('rT').textContent = tText(r.t);
+    el('rQ').textContent = si(Math.abs(r.P) * r.t, 'J').text;
+    el('subst').textContent = r.P === 0 ? ' = 0 W (T₂ = T₁)' :
+      ` = (${kText(r.k)})(${r.A.toFixed(2)} m²)(${dT} K) / (${r.dmm / 1000} m) = ${si(r.P, 'W').text}`;
+  }
+  function syncLabels() {
+    const T2 = +el('T2').value, T1 = +el('T1').value, A = +el('area').value, dmm = +el('thick').value;
+    const K = T => (T + 273.15).toFixed(0);
+    el('T2Out').textContent = `${T2} °C (${K(T2)} K)`;
+    el('T1Out').textContent = `${T1} °C (${K(T1)} K)`;
+    el('areaOut').textContent = `${A.toFixed(2)} m²`;
+    el('thickOut').textContent = `${dmm / 1000} m (${dmm} mm)`;
+    el('T2').setAttribute('aria-valuetext', degSpoken(T2));
+    el('T1').setAttribute('aria-valuetext', degSpoken(T1));
+    el('area').setAttribute('aria-valuetext', `${A.toFixed(2)} square meters`);
+    el('thick').setAttribute('aria-valuetext', `${dmm} ${dmm === 1 ? 'millimeter' : 'millimeters'}, ${dmm / 1000} meters`);
+  }
+  // Taller canvases on narrow screens so the enlarged labels fit
+  let narrow = null;
+  function fitCanvases() {
+    const n = (scene.clientWidth || 1000) < 620;
+    if (n !== narrow) { narrow = n; scene.height = n ? 760 : 470; graph.height = n ? 680 : 380; }
+  }
+  function render() { fitCanvases(); drawScene(); drawGraph(); readouts(); }
+
+  // ---- Motion ------------------------------------------------------------
+  function frame(now) {
+    if (!running) { lastFrame = null; return; }
+    if (lastFrame !== null) {
+      const real = Math.min(0.05, (now - lastFrame) / 1000);
+      cur().t += real * +el('rate').value;
+      moveDots(real);
+      if (now - lastTable > 500) { fillTable(); lastTable = now; }
+    }
+    lastFrame = now;
+    render();
+    requestAnimationFrame(frame);
+  }
+  function updateButtons() {
+    el('play').textContent = running ? 'Pause' : (cur().t > 0 ? 'Resume' : 'Play');
+  }
+  function pause(silent) {
+    running = false; updateButtons(); fillTable(); describe(); render();
+    if (!silent) {
+      const r = cur();
+      announce(`Paused at t = ${tSpoken(r.t)}. Heat transferred ${si(Math.abs(r.P) * r.t, 'J').spoken}.`);
+    }
+  }
+
+  // Settings change: if the clock has run, keep that run and start a new one (paused)
+  let settleTimer = null;
+  function onSettings() {
+    syncLabels();
+    const r = cur();
+    if (r.t > 0) {
+      const wasRunning = running;
+      running = false;
+      newRun(); dots = [];
+      updateButtons(); fillTable();
+      if (wasRunning) announce(`Paused because the settings changed. Run ${cur().n} is ready; press Play to start it.`);
+    } else {
+      Object.assign(r, readSettings());
+    }
+    describe(); render(); fillTable();
+    // one announcement of the new rate after the user stops adjusting
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => announce(spokenRate(cur())), 900);
+  }
+  ['T2', 'T1', 'area', 'thick'].forEach(id => el(id).addEventListener('input', onSettings));
+  el('mat').addEventListener('change', onSettings);
+
+  el('play').addEventListener('click', () => {
+    if (running) { pause(); return; }
+    running = true; updateButtons();
+    const r = cur();
+    announce((r.t > 0 ? 'Resumed. ' : `Run ${r.n} started. `) + spokenRate(r));
+    describe();
+    requestAnimationFrame(frame);
+  });
+  el('step').addEventListener('click', () => {
+    running = false;
+    const r = cur();
+    r.t += 1; moveDots(1 / 3);
+    updateButtons(); fillTable(); describe(); render();
+    announce(`t = ${tSpoken(r.t)}. Heat transferred ${si(Math.abs(r.P) * r.t, 'J').spoken}.`);
+  });
+  el('reset').addEventListener('click', () => {
+    running = false; runs = []; dots = []; emitAcc = 0;
+    newRun(); updateButtons(); fillTable(); describe(); render();
+    announce('Reset. Clock at 0 seconds; earlier runs cleared. ' + spokenRate(cur()));
+  });
+  el('csv').addEventListener('click', () => {
+    const blob = new Blob([csvText()], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'heat_conduction_runs.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  window.addEventListener('resize', render);
+
+  syncLabels();
+  newRun(); updateButtons(); fillTable(); describe(); render();
+})();
+</script>
+</body>
+</html>
